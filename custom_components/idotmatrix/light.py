@@ -4,16 +4,31 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.light import ColorMode, LightEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .ble import IdotMatrixClient, IdotMatrixError
-from .const import DOMAIN, MAX_BRIGHTNESS_PCT, MIN_BRIGHTNESS_PCT
+from .const import (
+    ATTR_FILE_PATH,
+    ATTR_FLIPPED,
+    ATTR_SPEED,
+    DOMAIN,
+    MAX_BRIGHTNESS_PCT,
+    MIN_BRIGHTNESS_PCT,
+    SERVICE_FLIP,
+    SERVICE_FREEZE,
+    SERVICE_RESET,
+    SERVICE_SET_SPEED,
+    SERVICE_UPLOAD_IMAGE,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +38,26 @@ async def async_setup_entry(
 ) -> None:
     client: IdotMatrixClient = hass.data[DOMAIN][entry.entry_id]
     async_add_entities([IdotMatrixLight(client, entry)])
+
+    # Must run inside a platform's own async_setup_entry - async_get_current_platform()
+    # relies on a context var only set while HA is calling into this module.
+    if not hass.services.has_service(DOMAIN, SERVICE_FLIP):
+        platform = entity_platform.async_get_current_platform()
+        platform.async_register_entity_service(
+            SERVICE_FLIP, {vol.Required(ATTR_FLIPPED): cv.boolean}, "async_flip"
+        )
+        platform.async_register_entity_service(SERVICE_FREEZE, {}, "async_toggle_freeze")
+        platform.async_register_entity_service(SERVICE_RESET, {}, "async_reset")
+        platform.async_register_entity_service(
+            SERVICE_SET_SPEED,
+            {vol.Required(ATTR_SPEED): vol.All(vol.Coerce(int), vol.Range(min=0, max=255))},
+            "async_set_speed",
+        )
+        platform.async_register_entity_service(
+            SERVICE_UPLOAD_IMAGE,
+            {vol.Required(ATTR_FILE_PATH): cv.string},
+            "async_upload_image_service",
+        )
 
 
 def _pct_to_brightness(pct: int) -> int:
