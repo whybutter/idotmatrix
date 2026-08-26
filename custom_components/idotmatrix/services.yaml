@@ -1,55 +1,6 @@
-flip:
-  name: Flip
-  description: Flip the panel display 180 degrees (or restore normal orientation).
-  target:
-    entity:
-      domain: light
-      integration: idotmatrix
-  fields:
-    flipped:
-      name: Flipped
-      description: true to flip 180 degrees, false to restore normal orientation.
-      required: true
-      selector:
-        boolean:
-
-freeze:
-  name: Toggle freeze
-  description: Toggle freeze/unfreeze of the current panel content.
-  target:
-    entity:
-      domain: light
-      integration: idotmatrix
-
-reset:
-  name: Reset
-  description: Send the panel's general reset sequence.
-  target:
-    entity:
-      domain: light
-      integration: idotmatrix
-
-set_speed:
-  name: Set animation speed
-  description: Set the panel's animation/scroll speed.
-  target:
-    entity:
-      domain: light
-      integration: idotmatrix
-  fields:
-    speed:
-      name: Speed
-      description: Speed value, 0-255.
-      required: true
-      selector:
-        number:
-          min: 0
-          max: 255
-          mode: box
-
 upload_image:
   name: Upload image
-  description: Upload a PNG (16x16 or 32x32) to the panel from a local file path.
+  description: Upload an image to the panel. Any format Pillow can read; it is converted to RGB and resized to the panel size automatically.
   target:
     entity:
       domain: light
@@ -57,7 +8,18 @@ upload_image:
   fields:
     file_path:
       name: File path
-      description: Path to a PNG file, must be in an HA-allowed directory (e.g. under /config/www).
+      description: Path to the image file, must be in an HA-allowed directory (e.g. under /config/www).
       required: true
       selector:
         text:
+    size:
+      name: Panel size
+      description: Panel resolution (pixels per side).
+      required: false
+      default: 32
+      selector:
+        select:
+          options:
+            - "16"
+            - "32"
+            - "64"

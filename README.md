@@ -31,29 +31,50 @@ via Settings → Devices & Services → Add Integration → iDotMatrix.
 
 ## What it exposes
 
-- A `light` entity: on/off + brightness (5-100%, mapped to HA's 0-255 range).
-- Entity services on that light: `idotmatrix.flip`, `idotmatrix.freeze`,
-  `idotmatrix.reset`, `idotmatrix.set_speed`, `idotmatrix.upload_image`.
+One device with a proper entity model (no state can be read back from the
+panel, so writable entities are marked `assumed_state`):
 
-## Status
+- **Light** — on/off + brightness (5-100% on the device, mapped to HA's
+  0-255 range). Carries the `idotmatrix.upload_image` entity service: any
+  image Pillow can read is converted to RGB, resized to the panel size
+  (16/32/64) and uploaded.
+- **Switch: Flip display** — 180° rotation (explicit on/off command).
+- **Button: Toggle freeze** — a button, not a switch, because the panel only
+  exposes a toggle and its state can't be read.
+- **Button: Reset** — general "fix the panel" sequence.
+- **Number: Animation speed** — disabled by default; the command isn't
+  referenced by the official app and likely only affects animated modes.
 
-**Untested against real hardware** — protocol was reverse-engineered from the
-archived `derkalle4/python3-idotmatrix-library` (no maintainer, but code
-available) and ported to this integration without a physical panel to
-validate against. Before trusting it:
+Availability follows BLE advertisements: the device shows unavailable when
+no adapter/proxy has seen it recently.
 
-1. Confirm the panel is discovered (`IDM-*`) and the config flow completes.
-2. Validate `turn_on` / `turn_off` / brightness first (cheapest commands).
-3. Validate `flip`, `set_speed`, `freeze`, `reset`.
-4. Validate `upload_image` last (most complex framing, chunked by both the
-   4096-byte protocol-level chunking and the BLE-layer MTU).
+## Architecture
 
-## Not ported (out of scope for MVP)
+- `protocol/` — pure byte-level protocol (no HA or BLE imports, unit-testable
+  in isolation). Framing knowledge cross-checked against the archived
+  original and the maintained fork.
+- `client.py` — connection management on top of HA's Bluetooth stack:
+  a lock serializes writes, every command is followed by a 0.5 s settle
+  delay (the panel silently drops back-to-back writes), and the connection
+  is released after 20 s idle so it doesn't hold one of the proxy's limited
+  connection slots.
+- `availability.py` — advertisement-based availability via HA bluetooth
+  callbacks.
+- Thin entity platforms (`light`, `switch`, `button`, `number`) over a shared
+  base entity.
 
-- `text.py` equivalent (render text to bitmap + zlib compress before sending).
-- `clock.py`, `chronograph.py`, `scoreboard.py`, `graffiti.py`, `musicSync.py`.
+## Validated against real hardware
+
+on/off, brightness, flip (2026-08-26, via a WBRG1 active proxy). Still
+untested: freeze timing fix, reset, speed, image upload.
+
+## Out of scope (for now)
+
+Text rendering, GIFs, clock/chronograph/scoreboard modes — the maintained
+fork has these reverse-engineered if we want them later.
 
 ## Credits
 
 Protocol reverse-engineered by the `derkalle4/python3-idotmatrix-library`
-community (archived 2026-06-05).
+community (archived 2026-06-05) and continued in
+`Toon-nooT/idotmatrix-api-client` / `markusressel/python3-idotmatrix-library`.
