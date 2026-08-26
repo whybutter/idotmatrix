@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "bluetooth_confirm": {
+        "description": "Do you want to set up {name}?"
+      },
+      "confirm": {
+        "description": "Do you want to set up {name}?"
+      },
+      "user": {
+        "data": {
+          "address": "Device"
+        }
+      }
+    },
+    "abort": {
+      "no_devices_found": "No IDM-* panels found nearby. Confirm the panel is powered and in range of an active Bluetooth proxy.",
+      "already_configured": "This panel is already configured."
+    }
+  }
+}
