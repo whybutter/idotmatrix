@@ -9,6 +9,7 @@ ha-tuya-ble does for BLE thermometers. No firmware changes needed on any proxy.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from bleak.exc import BleakError
@@ -74,6 +75,12 @@ class IdotMatrixClient:
             await client.write_gatt_char(WRITE_CHAR_UUID, data, response=False)
         except (BleakError, TimeoutError) as err:
             raise IdotMatrixError(f"Write failed: {err}") from err
+        # Empirically required (per Toon-nooT/idotmatrix-api-client, an actively
+        # maintained sibling port of this protocol): the panel needs a moment to
+        # process a command before it can accept the next write-without-response.
+        # Without this, back-to-back commands (e.g. toggling freeze twice) can
+        # silently drop the second write.
+        await asyncio.sleep(0.5)
 
     async def turn_on(self) -> None:
         await self._write_raw(protocol.cmd_screen_power(True))
