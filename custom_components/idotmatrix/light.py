@@ -349,7 +349,49 @@ def _read_file(path: str) -> bytes:
         return f.read()
 
 
-def _prepare_pixels(raw: bytes, size: int) -> bytes:
+def _alpha_bbox(img):
+    """Bounding box of the artwork (alpha > threshold), or the whole frame if
+    the image is fully opaque. None only if fully transparent."""
+    alpha = img.getchannel("A")
+    if alpha.getextrema()[0] >= 255:  # fully opaque — don't trim photos
+        return (0, 0, img.width, img.height)
+    return alpha.point(lambda a: 255 if a > 16 else 0).getbbox()
+
+
+def _fit_rgb(img, size, background, pixel_art, crop_box=None, square_side=None):
+    """Fit an RGBA image into a size×size RGB frame for the panel.
+
+    The panel is tiny, so wasted margin matters: many sources (emoji, sprites)
+    embed the artwork in a large transparent canvas. We (1) crop to the artwork
+    box, (2) pad to a centered square so aspect ratio is preserved (no
+    stretching), (3) composite over an opaque background so transparency/shadows
+    blend into it instead of becoming garbage, and (4) scale to the panel.
+
+    crop_box / square_side can be supplied so every frame of an animation shares
+    the same crop and scale (otherwise per-frame trimming would destroy motion).
+    """
+    from PIL import Image
+
+    img = img.convert("RGBA")
+    if crop_box is None:
+        crop_box = _alpha_bbox(img)
+    if crop_box:
+        img = img.crop(crop_box)
+    w, h = img.size
+    side = square_side or max(w, h, 1)
+    square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    square.paste(img, ((side - w) // 2, (side - h) // 2))
+    canvas = Image.new("RGBA", (side, side), (*background, 255))
+    canvas.alpha_composite(square)
+    rgb = canvas.convert("RGB")
+    if rgb.size != (size, size):
+        rgb = rgb.resize((size, size), Image.NEAREST if pixel_art else Image.LANCZOS)
+    return rgb
+
+
+def _prepare_pixels(
+    raw: bytes, size: int, background: tuple[int, int, int] = (0, 0, 0)
+) -> bytes:
     """Normalize any input image (raw file bytes) to the panel's raw pixel bytes
     (blocking; run in executor).
 
@@ -364,37 +406,70 @@ def _prepare_pixels(raw: bytes, size: int) -> bytes:
     from PIL import Image, ImageOps
 
     with Image.open(io.BytesIO(raw)) as img:
-        img = ImageOps.exif_transpose(img)
-        img = img.convert("RGB")
-        if img.size != (size, size):
-            img = img.resize((size, size), Image.LANCZOS)
-        return img.tobytes()
+        img = ImageOps.exif_transpose(img).convert("RGBA")
+        if img.getchannel("A").getextrema()[0] >= 255:
+            # Fully opaque (a photo): center-crop to square so it fills the panel
+            # without distortion or letterbox bars.
+            rgb = ImageOps.fit(
+                img.convert("RGB"), (size, size), Image.LANCZOS, centering=(0.5, 0.5)
+            )
+        else:
+            # Transparent art (emoji, icons): trim the margin, pad to square, and
+            # flatten onto the background so it fills the panel.
+            rgb = _fit_rgb(img, size, background, pixel_art=False)
+        return rgb.tobytes()
 
 
-def _prepare_gif(raw: bytes, size: int) -> bytes:
+def _prepare_gif(
+    raw: bytes, size: int, background: tuple[int, int, int] = (0, 0, 0)
+) -> bytes:
     """Normalize any GIF (raw file bytes) to an encoded GIF sized to the panel
     (blocking; run in executor).
 
     The GIF upload path takes an ENCODED .gif byte stream, not raw pixels. We
-    re-encode: resize every frame to size×size (NEAREST to preserve pixel art),
-    cap the frame count, and re-save. optimize=True is required — the panel's
-    transfer fails on an unoptimized GIF (per the maintained fork).
+    re-encode: trim (using ONE bounding box shared across all frames so motion
+    is preserved), flatten onto a background, and resize every frame to
+    size×size, capping the frame count. optimize=True is required — the panel's
+    transfer fails on an unoptimized GIF (per the maintained fork). The shared
+    trim + background composite fixes sprites that otherwise showed with
+    mis-cropped backgrounds or leftover shadows.
     """
     import io
 
     from PIL import Image, ImageSequence
 
     with Image.open(io.BytesIO(raw)) as img:
-        frames: list = []
+        raw_frames: list = []
         durations: list[int] = []
+        union = None
         for frame in ImageSequence.Iterator(img):
-            rgb = frame.convert("RGB")
-            if rgb.size != (size, size):
-                rgb = rgb.resize((size, size), Image.NEAREST)
-            frames.append(rgb)
+            rgba = frame.convert("RGBA")
+            raw_frames.append(rgba)
             durations.append(int(frame.info.get("duration", DEFAULT_GIF_FRAME_MS)))
-            if len(frames) >= MAX_GIF_FRAMES:
+            bb = _alpha_bbox(rgba)
+            if bb:
+                union = (
+                    bb
+                    if union is None
+                    else (
+                        min(union[0], bb[0]),
+                        min(union[1], bb[1]),
+                        max(union[2], bb[2]),
+                        max(union[3], bb[3]),
+                    )
+                )
+            if len(raw_frames) >= MAX_GIF_FRAMES:
                 break
+
+        if not raw_frames:
+            raise ValueError("no frames found in GIF")
+        if union is None:
+            union = (0, 0, raw_frames[0].width, raw_frames[0].height)
+        side = max(union[2] - union[0], union[3] - union[1], 1)
+        frames = [
+            _fit_rgb(f, size, background, True, crop_box=union, square_side=side)
+            for f in raw_frames
+        ]
 
     if not frames:
         raise ValueError("no frames found in GIF")
