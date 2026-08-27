@@ -164,3 +164,29 @@ def screen_on_time(value: int) -> bytes:
     if not 0 <= value <= 255:
         raise ValueError("screen-on-time value must be 0-255")
     return bytes([0x05, 0x00, 0x0F, 0x80, value])
+
+
+def mic_rhythm(style: int, sensitivity: int) -> bytes:
+    """On-device microphone reactive visualizer (BleProtocolN.sendMicCommand1).
+    One frame carries both the style (mode index) and sensitivity (0-100);
+    re-send to change either live."""
+    if not 0 <= style <= 255:
+        raise ValueError("mic style must be 0-255")
+    if not 0 <= sensitivity <= 100:
+        raise ValueError("mic sensitivity must be 0-100")
+    return bytes([0x06, 0x00, 0x0B, 0x80, style, sensitivity])
+
+
+def parse_device_info(frame: bytes) -> dict | None:
+    """Parse the panel's auto-pushed device-info notification.
+
+    Frame: 09 00 01 80 <fw_major> <fw_minor> <sub> <panel_type> <flag>
+    (from MainActivity's fa03 notify handler). Firmware over BLE is only
+    major.minor; the app's fuller version string comes from a cloud API.
+    """
+    if len(frame) < 9 or frame[2] != 0x01 or frame[3] != 0x80:
+        return None
+    return {
+        "firmware": f"{frame[4]}.{frame[5]:02d}",
+        "panel_type": frame[7],
+    }

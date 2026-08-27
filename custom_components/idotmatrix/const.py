@@ -35,6 +35,7 @@ SERVICE_UPLOAD_IMAGE = "upload_image"
 SERVICE_UPLOAD_GIF = "upload_gif"
 SERVICE_SEND_TEXT = "send_text"
 SERVICE_SET_ECO = "set_eco_mode"
+SERVICE_MIC_RHYTHM = "mic_rhythm"
 SERVICE_FULLSCREEN_COLOR = "fullscreen_color"
 SERVICE_SHOW_CLOCK = "show_clock"
 SERVICE_SHOW_EFFECT = "show_effect"
@@ -87,6 +88,9 @@ TEXT_COLOR_MODES = {
 }
 DEFAULT_TEXT_SPEED = 95
 MAX_TEXT_LEN = 500
+
+ATTR_SENSITIVITY = "sensitivity"
+DEFAULT_MIC_SENSITIVITY = 50
 
 # Chronograph/countdown action label -> mode byte.
 CHRONOGRAPH_ACTIONS = {"reset": 0, "start": 1, "pause": 2, "resume": 3}

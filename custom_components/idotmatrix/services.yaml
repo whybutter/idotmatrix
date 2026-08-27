@@ -116,6 +116,35 @@ send_text:
       selector:
         color_rgb:
 
+mic_rhythm:
+  name: Microphone rhythm
+  description: Show the on-device microphone reactive visualizer (uses the panel's own mic). Re-send to change style or sensitivity live. Switch to another display (image, clock, off) to stop.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+  fields:
+    style:
+      name: Style
+      description: Visualizer style index (0 and up; valid range depends on the device).
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 20
+          mode: box
+    sensitivity:
+      name: Sensitivity
+      description: Mic sensitivity, 0-100.
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
 set_eco_mode:
   name: Set eco mode
   description: Configure the energy-saving auto-dim window (panel dims to a lower brightness between the start and end times).

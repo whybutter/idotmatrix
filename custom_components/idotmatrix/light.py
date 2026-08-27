@@ -34,11 +34,13 @@ from .const import (
     ATTR_START_TIME,
     ATTR_STYLE,
     ATTR_TEXT,
+    ATTR_SENSITIVITY,
     CHRONOGRAPH_ACTIONS,
     CLOCK_STYLES,
     COUNTDOWN_ACTIONS,
     DEFAULT_EFFECT_COLORS,
     DEFAULT_GIF_FRAME_MS,
+    DEFAULT_MIC_SENSITIVITY,
     DEFAULT_PANEL_SIZE,
     DEFAULT_TEXT_SPEED,
     EFFECT_STYLES,
@@ -50,6 +52,7 @@ from .const import (
     SERVICE_CHRONOGRAPH,
     SERVICE_COUNTDOWN,
     SERVICE_FULLSCREEN_COLOR,
+    SERVICE_MIC_RHYTHM,
     SERVICE_SCOREBOARD,
     SERVICE_SEND_TEXT,
     SERVICE_SET_ECO,
@@ -169,6 +172,16 @@ async def async_setup_entry(
             vol.Required(ATTR_COUNT2): vol.All(int, vol.Range(0, 999)),
         },
         "async_scoreboard",
+    )
+    platform.async_register_entity_service(
+        SERVICE_MIC_RHYTHM,
+        {
+            vol.Optional(ATTR_STYLE, default=0): vol.All(int, vol.Range(0, 255)),
+            vol.Optional(ATTR_SENSITIVITY, default=DEFAULT_MIC_SENSITIVITY): vol.All(
+                int, vol.Range(0, 100)
+            ),
+        },
+        "async_mic_rhythm",
     )
     platform.async_register_entity_service(
         SERVICE_SET_ECO,
@@ -294,6 +307,9 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
 
     async def async_scoreboard(self, count1: int, count2: int) -> None:
         await self._run(self._client.scoreboard(count1, count2))
+
+    async def async_mic_rhythm(self, style: int, sensitivity: int) -> None:
+        await self._run(self._client.mic_rhythm(style, sensitivity))
 
     async def async_set_eco(
         self, enabled: bool, start_time, end_time, eco_brightness: int

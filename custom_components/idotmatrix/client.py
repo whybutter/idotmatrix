@@ -42,6 +42,10 @@ from .const import (
 # through the proxy, at the cost of more (paced) writes.
 IMAGE_SUBCHUNK_MAX = 180
 
+# Cap connection retries so a busy/unreachable panel fails with a clear error in
+# reasonable time instead of the connector retrying for ~30s+.
+CONNECT_MAX_ATTEMPTS = 3
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -58,6 +62,8 @@ class IdotMatrixClient:
         self._idle_handle: asyncio.TimerHandle | None = None
         self._notifications: asyncio.Queue[bytes] = asyncio.Queue()
         self._last_notification: bytes | None = None
+        self._device_info: dict | None = None
+        self._device_info_listeners: list = []
 
     @property
     def address(self) -> str:
@@ -68,6 +74,20 @@ class IdotMatrixClient:
         """Most recent bytes the panel sent on the notify characteristic."""
         return self._last_notification
 
+    @property
+    def device_info(self) -> dict | None:
+        """Parsed device-info the panel auto-pushes on connect (firmware, type)."""
+        return self._device_info
+
+    def add_device_info_listener(self, cb) -> callable:
+        self._device_info_listeners.append(cb)
+
+        def _unsub() -> None:
+            if cb in self._device_info_listeners:
+                self._device_info_listeners.remove(cb)
+
+        return _unsub
+
     def _on_notify(self, _char, data: bytearray) -> None:
         """fa03 notification handler. The panel signals transfer readiness here
         (e.g. 05 00 01 00 01 = ready for next block) and answers queries; we log
@@ -76,6 +96,10 @@ class IdotMatrixClient:
         self._last_notification = frame
         _LOGGER.debug("notify from %s: %s", self._address, frame.hex())
         self._notifications.put_nowait(frame)
+        if (info := protocol.parse_device_info(frame)) is not None:
+            self._device_info = info
+            for cb in list(self._device_info_listeners):
+                cb()
 
     # -- high-level commands --
 
@@ -134,6 +158,9 @@ class IdotMatrixClient:
 
     async def set_screen_on_time(self, value: int) -> None:
         await self._write(protocol.screen_on_time(value))
+
+    async def mic_rhythm(self, style: int, sensitivity: int) -> None:
+        await self._write(protocol.mic_rhythm(style, sensitivity))
 
     async def upload_image(self, pixel_bytes: bytes) -> None:
         """Upload a still image.
@@ -269,16 +296,24 @@ class IdotMatrixClient:
         )
         if ble_device is None:
             raise IdotMatrixError(
-                f"No adapter or active proxy currently sees {self._address}; "
-                "check the panel is powered and in range of an active BLE proxy"
+                f"No BLE proxy currently sees {self._address} — check the panel is "
+                "powered and in range of an active proxy, and that the proxy "
+                "(gateway) is online"
             )
         try:
             self._client = await establish_connection(
-                BleakClientWithServiceCache, ble_device, self._address
+                BleakClientWithServiceCache,
+                ble_device,
+                self._address,
+                max_attempts=CONNECT_MAX_ATTEMPTS,
             )
         except (BleakError, TimeoutError) as err:
+            # Common causes: the official phone app holds the panel's single BLE
+            # connection, or the proxy/gateway is flaky. Surface both.
             raise IdotMatrixError(
-                f"Failed to connect to {self._address}: {err}"
+                f"Couldn't connect to the panel ({self._address}). It may be in "
+                "use by the iDotMatrix phone app (close it), or its BLE proxy "
+                f"may be unreachable. ({err})"
             ) from err
         # The panel needs notifications enabled on fa03 to accept a bulk
         # transfer (the official app subscribes before uploading) and uses them

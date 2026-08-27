@@ -52,7 +52,11 @@ panel, so writable entities are marked `assumed_state`):
   - `idotmatrix.scoreboard` — two counters (0-999 each).
   - `idotmatrix.set_eco_mode` — energy-saving auto-dim window (start/end
     time + eco brightness).
+  - `idotmatrix.mic_rhythm` — on-device microphone reactive visualizer
+    (style + sensitivity).
 - **Number: Screen-on time** — auto screen-off timeout.
+- **Sensors (diagnostic): Firmware, Panel type** — parsed from the info the
+  panel pushes on connect.
 
 The panel's clock is synced to local time automatically on every connect.
 - **Switch: Flip display** — 180° rotation (explicit on/off command).
