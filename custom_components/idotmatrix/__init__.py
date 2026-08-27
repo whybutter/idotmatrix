@@ -72,6 +72,10 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     from .albums import async_register as async_register_albums
 
     async_register_albums(hass)
+
+    from .catalog import async_register as async_register_catalog
+
+    async_register_catalog(hass)
     fdir = os.path.join(os.path.dirname(__file__), "frontend")
     await hass.http.async_register_static_paths(
         [
