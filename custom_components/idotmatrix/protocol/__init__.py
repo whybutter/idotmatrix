@@ -22,11 +22,16 @@ from .commands import (
     set_time,
     speed,
 )
+from .gif import build_gif_upload
 from .image import build_image_upload
+from .text import SEPARATOR as TEXT_SEPARATOR, build_text_packet
 
 __all__ = [
+    "TEXT_SEPARATOR",
     "brightness",
+    "build_gif_upload",
     "build_image_upload",
+    "build_text_packet",
     "chronograph",
     "clock",
     "countdown",

@@ -102,29 +102,69 @@ class IdotMatrixClient:
     async def upload_image(self, pixel_bytes: bytes) -> None:
         """Upload a still image.
 
-        `pixel_bytes` must already be in the panel's native G,R,B order
-        (see light._prepare_pixels). The DIY image path is different from the
-        short commands: it needs write-with-response, per-4K-block framing, and
-        an ack round-trip on the notify characteristic after each block (the
-        panel signals it's ready for the next block). Sending it blind — or
-        without response — leaves the panel black.
+        `pixel_bytes` must already be raw R,G,B (see light._prepare_pixels). The
+        bulk path is different from the short commands: enter DIY mode, then send
+        per-4K-block framing with write-with-response and an ack round-trip on
+        the notify characteristic after each block. Sending it blind — or without
+        response — leaves the panel black.
         """
         blocks = protocol.build_image_upload(pixel_bytes)
+        await self._send_bulk(blocks, enter_diy=True, label="Image")
+
+    async def upload_gif(self, gif_bytes: bytes) -> None:
+        """Upload an animated GIF (encoded .gif bytes, not raw pixels).
+
+        Same block+ack transport as image, but with the GIF's own 16-byte
+        headers (CRC32) and no DIY-mode enable (that's the still-image path).
+        """
+        blocks = protocol.build_gif_upload(gif_bytes)
+        await self._send_bulk(blocks, enter_diy=False, label="GIF")
+
+    async def send_text(
+        self,
+        bitmaps: bytes,
+        mode: int,
+        speed: int,
+        color_mode: int,
+        color: tuple[int, int, int],
+        bg_mode: int,
+        bg_color: tuple[int, int, int],
+    ) -> None:
+        """Send rendered text. Unlike image/GIF, text is a single stream
+        (header+metadata+bitmaps) written write-without-response and fragmented
+        by MTU underneath — no 4K blocks, no ack."""
+        payload = protocol.build_text_packet(
+            bitmaps, mode, speed, color_mode, color, bg_mode, bg_color
+        )
+        await self._write(payload)
+
+    async def _send_bulk(
+        self, blocks: list[bytes], *, enter_diy: bool, label: str
+    ) -> None:
         async with self._lock:
             self._cancel_idle_timer()
             try:
                 client = await self._ensure_connected()
-                # Enter DIY draw mode (short command, with response).
-                await client.write_gatt_char(
-                    WRITE_CHAR_UUID, protocol.diy_mode(True), response=True
-                )
-                await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+                if enter_diy:
+                    await client.write_gatt_char(
+                        WRITE_CHAR_UUID, protocol.diy_mode(True), response=True
+                    )
+                    await asyncio.sleep(COMMAND_SETTLE_SECONDS)
                 sub = self._image_subchunk_size(client)
-                for block in blocks:
+                _LOGGER.debug(
+                    "%s upload: %d block(s), sub-chunk %d, mtu %s, enter_diy=%s",
+                    label,
+                    len(blocks),
+                    sub,
+                    getattr(client, "mtu_size", "?"),
+                    enter_diy,
+                )
+                for n, block in enumerate(blocks, 1):
                     await self._write_block(client, block, sub)
+                    _LOGGER.debug("%s block %d/%d written", label, n, len(blocks))
             except (BleakError, TimeoutError) as err:
                 raise IdotMatrixError(
-                    f"Image upload to {self._address} failed: {err}"
+                    f"{label} upload to {self._address} failed: {err}"
                 ) from err
             finally:
                 self._schedule_idle_disconnect()
@@ -137,22 +177,26 @@ class IdotMatrixClient:
     async def _write_block(
         self, client: BleakClientWithServiceCache, block: bytes, sub: int
     ) -> None:
-        """Write one 4K DIY block, split into BLE sub-writes.
+        """Write one 4K bulk block, split into BLE sub-writes.
 
-        All sub-writes are write-without-response except the last, which is
-        write-with-response; then we read the notify characteristic once. That
-        read is the block-level ack round-trip the panel needs before the next
-        block (mirrors the maintained fork, which is known to work on real
-        hardware). Best-effort: some stacks refuse the read, which is fine.
+        Every sub-write uses write-WITH-response. On a direct adapter the
+        maintained fork can send the non-final pieces without response, but over
+        an ESPHome-style BLE proxy (e.g. the WBRG1 gateway) rapid
+        write-without-response packets get silently dropped — leaving the panel
+        black after DIY mode blanks it. With-response gives per-write flow
+        control and is what actually works through the proxy (the DIY-enable
+        command, also with-response, reaches the panel fine). Then we read the
+        notify characteristic once as the block-level ack (best-effort).
         """
-        for i in range(0, len(block), sub):
-            piece = block[i : i + sub]
-            is_last = i + sub >= len(block)
-            await client.write_gatt_char(WRITE_CHAR_UUID, piece, response=is_last)
+        pieces = range(0, len(block), sub)
+        for i in pieces:
+            await client.write_gatt_char(
+                WRITE_CHAR_UUID, block[i : i + sub], response=True
+            )
         try:
             await client.read_gatt_char(READ_CHAR_UUID)
         except (BleakError, TimeoutError) as err:
-            _LOGGER.debug("Image block ack read skipped: %s", err)
+            _LOGGER.debug("Bulk block ack read skipped: %s", err)
 
     # -- connection plumbing --
 

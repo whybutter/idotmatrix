@@ -24,6 +24,98 @@ upload_image:
             - "32"
             - "64"
 
+upload_gif:
+  name: Upload GIF
+  description: Upload an animated GIF to the panel. Frames are resized to the panel size and re-encoded automatically.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+  fields:
+    file_path:
+      name: File path
+      description: Path to the GIF file, must be in an HA-allowed directory (e.g. under /config/www).
+      required: true
+      selector:
+        text:
+    size:
+      name: Panel size
+      description: Panel resolution (pixels per side).
+      required: false
+      default: 32
+      selector:
+        select:
+          options:
+            - "16"
+            - "32"
+            - "64"
+
+send_text:
+  name: Send text
+  description: Render and display a text message on the panel.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+  fields:
+    text:
+      name: Text
+      required: true
+      selector:
+        text:
+    mode:
+      name: Scroll / animation mode
+      required: false
+      default: marquee
+      selector:
+        select:
+          options:
+            - replace
+            - marquee
+            - reversed_marquee
+            - rising
+            - lowering
+            - blinking
+            - fading
+            - tetris
+            - filling
+    speed:
+      name: Speed
+      description: 0-255 (higher is faster).
+      required: false
+      default: 95
+      selector:
+        number:
+          min: 0
+          max: 255
+          mode: slider
+    color_mode:
+      name: Color mode
+      required: false
+      default: white
+      selector:
+        select:
+          options:
+            - white
+            - rgb
+            - rainbow_1
+            - rainbow_2
+            - rainbow_3
+            - rainbow_4
+    rgb_color:
+      name: Text color
+      description: Used when color mode is "rgb".
+      required: false
+      default: [255, 255, 255]
+      selector:
+        color_rgb:
+    bg_color:
+      name: Background color
+      description: Omit for a black background.
+      required: false
+      selector:
+        color_rgb:
+
 fullscreen_color:
   name: Fullscreen color
   description: Fill the whole panel with one solid color.

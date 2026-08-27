@@ -38,6 +38,10 @@ panel, so writable entities are marked `assumed_state`):
   0-255 range). Carries the entity services below.
   - `idotmatrix.upload_image` — any image Pillow can read, resized to the
     panel size (16/32/64) and uploaded.
+  - `idotmatrix.upload_gif` — an animated GIF; frames are resized and
+    re-encoded automatically.
+  - `idotmatrix.send_text` — render and display a text message (9 scroll
+    modes, speed, color mode, text/background color).
   - `idotmatrix.fullscreen_color` — fill the panel with one solid RGB color.
   - `idotmatrix.show_clock` — on-device clock (8 styles, date on/off, 12/24h,
     color).
