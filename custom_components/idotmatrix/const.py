@@ -16,8 +16,10 @@ COMMAND_SETTLE_SECONDS = 0.5
 # Drop the BLE connection after this much idle time. An ESPHome-style active
 # proxy has a small number of concurrent connection slots; holding one open
 # forever would starve other BLE devices (e.g. Tuya thermometers) behind the
-# same proxy.
-IDLE_DISCONNECT_SECONDS = 20.0
+# same proxy. Kept long enough that back-to-back commands/uploads reuse one
+# connection instead of reconnecting each time (reconnect is the slow part,
+# not the transfer), but short enough to release the slot fairly soon after.
+IDLE_DISCONNECT_SECONDS = 90.0
 
 # Pacing between BLE sub-writes during a bulk (image/GIF) transfer. Bulk data
 # is sent write-WITHOUT-response (write-with-response gives GATT error 133 over
