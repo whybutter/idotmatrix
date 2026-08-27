@@ -18,8 +18,9 @@ import { InlineColor, InlineModes, InlineText } from "./InlineControls";
 import { useBusyAction } from "./useBusyAction";
 import { Gallery } from "./Gallery";
 import { Albums } from "./Albums";
+import { Explore } from "./Explore";
 
-type View = "home" | "gallery" | "albums";
+type View = "home" | "gallery" | "albums" | "explore";
 
 type ModalKey = "upload" | "scoreboard" | "timers" | null;
 
@@ -235,6 +236,14 @@ export function App() {
           >
             Álbumes
           </button>
+          <button
+            className={"idot-tab" + (view === "explore" ? " active" : "")}
+            onClick={() => setView("explore")}
+            role="tab"
+            aria-selected={view === "explore"}
+          >
+            Explorar
+          </button>
         </div>
 
         {/* Device switcher stays visible so the user can pick a device even
@@ -262,12 +271,14 @@ export function App() {
           </div>
         )}
 
-        {view === "gallery" || view === "albums" ? (
+        {view === "gallery" || view === "albums" || view === "explore" ? (
           device ? (
             view === "gallery" ? (
               <Gallery device={device} notify={notify} />
-            ) : (
+            ) : view === "albums" ? (
               <Albums device={device} available={available} notify={notify} />
+            ) : (
+              <Explore device={device} available={available} notify={notify} />
             )
           ) : (
             <div className="idot-card idot-connecting">

@@ -66,3 +66,13 @@ export interface Album {
   item_ids: string[];
   interval: number; // seconds between images
 }
+
+export interface CatalogGroup {
+  id: string;
+  name: string;
+}
+
+export interface CatalogItem {
+  hexcode: string;
+  name: string;
+}

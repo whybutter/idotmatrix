@@ -1,5 +1,7 @@
 import type {
   Album,
+  CatalogGroup,
+  CatalogItem,
   GalleryItem,
   Hass,
   HassEntityRegistryEntry,
@@ -208,6 +210,43 @@ export async function albumsPlay(
 
 export async function albumsStop(hass: Hass, entityId: string): Promise<void> {
   await hass.callWS({ type: "idotmatrix/albums/stop", entity_id: entityId });
+}
+
+/* ---------------- Online catalog (Explorar) ---------------- */
+
+export async function catalogGroups(hass: Hass): Promise<CatalogGroup[]> {
+  const res = await hass.callWS<{ groups: CatalogGroup[] }>({
+    type: "idotmatrix/catalog/groups",
+  });
+  return res?.groups ?? [];
+}
+
+export async function catalogList(
+  hass: Hass,
+  group: string,
+  limit = 60,
+  offset = 0
+): Promise<{ items: CatalogItem[]; total: number }> {
+  const res = await hass.callWS<{ items: CatalogItem[]; total: number }>({
+    type: "idotmatrix/catalog/list",
+    group,
+    limit,
+    offset,
+  });
+  return { items: res?.items ?? [], total: res?.total ?? 0 };
+}
+
+/** Same-origin HA-served PNG URL for a catalog hexcode. */
+export function catalogImgUrl(hexcode: string): string {
+  return `/api/idotmatrix/catalog/img/${hexcode}`;
+}
+
+/** Fetch a catalog image and return raw base64 (no data-URL prefix). */
+export async function catalogImageBase64(hexcode: string): Promise<string> {
+  const res = await fetch(catalogImgUrl(hexcode));
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const buf = await res.arrayBuffer();
+  return arrayBufferToBase64(buf);
 }
 
 export function isLightOn(hass: Hass, entityId: string): boolean {
