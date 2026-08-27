@@ -209,7 +209,6 @@ class IdotMatrixClient:
         # assets must be sent STRICTLY one at a time, each gated on the previous
         # asset's finish-ack (05 00 01 00 03) — sending them back-to-back makes
         # the panel drop them (confirmed from the app's onFinishSend chaining).
-        block_ready = bytes.fromhex("0500010001")
         block_finish = bytes.fromhex("0500010003")
         async with self._lock:
             self._cancel_idle_timer()
@@ -223,16 +222,33 @@ class IdotMatrixClient:
                 for n, blocks in enumerate(block_lists, 1):
                     for j, block in enumerate(blocks):
                         await self._write_block(client, block, sub)
+                        # Between 4K blocks the panel signals readiness on fa03.
+                        # Use the loose wait (any notification) that the working
+                        # transient image/GIF path uses — a strict marker match
+                        # can stall multi-block GIF assets.
                         if j < len(blocks) - 1:
-                            await self._wait_for_ack(block_ready)
-                    # Gate on this asset's finish before starting the next one.
-                    got = await self._wait_for_ack(block_finish)
-                    _LOGGER.debug(
-                        "Album asset %d/%d written (finish-ack=%s)",
-                        n,
-                        len(block_lists),
-                        got,
-                    )
+                            await self._wait_for_block_ack()
+                    # Gate on this asset's finish (05 00 01 00 03) before the next
+                    # asset. A big GIF is many blocks and the panel needs longer
+                    # to store + CRC-check it, so scale the timeout with size.
+                    finish_timeout = min(30.0, 4.0 + 1.5 * len(blocks))
+                    got = await self._wait_for_ack(block_finish, timeout=finish_timeout)
+                    if got:
+                        _LOGGER.debug(
+                            "Album asset %d/%d stored", n, len(block_lists)
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Album asset %d/%d (%d block(s)): no finish-ack within "
+                            "%.0fs — the panel may not have stored it (large GIFs "
+                            "are the usual cause)",
+                            n,
+                            len(block_lists),
+                            len(blocks),
+                            finish_timeout,
+                        )
+                    # Small settle so the panel is ready for the next asset.
+                    await asyncio.sleep(COMMAND_SETTLE_SECONDS)
             except (BleakError, TimeoutError) as err:
                 raise IdotMatrixError(
                     f"Album save to {self._address} failed: {err}"
