@@ -383,13 +383,16 @@ class HeatonSource(CatalogSource):
         session = async_get_clientsession(self._hass)
         try:
             async with session.get(
-                url, headers={"User-Agent": "okhttp/4.9.0"}
+                url, headers={"User-Agent": "okhttp/5.1.0", "Connection": "close"}
             ) as r:
                 if r.status != 200:
                     return None
-                data = await r.read()
+                text = await r.text()
         except Exception as err:  # noqa: BLE001
             _LOGGER.debug("heaton image fetch failed: %s", err)
+            return None
+        data = self._decode_asset(text)
+        if data is None:
             return None
         # Sniff the real type (the CDN doesn't set a useful extension).
         if data[:4] == b"GIF8":
@@ -403,6 +406,26 @@ class HeatonSource(CatalogSource):
         result = (data, ctype)
         self._img[ref] = result
         return result
+
+    @staticmethod
+    def _decode_asset(text: str) -> bytes | None:
+        """The CDN's /download/<id> returns an obfuscated TEXT envelope, not raw
+        image bytes (the app's DecryptHelper.getDecryptedFile). Decode: strip a
+        32-char nonce off each end, '+'→space, URL-decode (UTF-8), reverse the
+        whole string, trim CR/LF, then standard Base64-decode → the real PNG/GIF.
+        No auth is involved; this is pure client-side obfuscation."""
+        import base64
+        import urllib.parse
+
+        if len(text) <= 64:
+            return None
+        s = text[32 : len(text) - 32].replace("+", " ")
+        s = urllib.parse.unquote(s, encoding="utf-8", errors="replace")
+        s = s[::-1].strip().replace("\r", "").replace("\n", "")
+        try:
+            return base64.b64decode(s)
+        except Exception:  # noqa: BLE001
+            return None
 
 
 class CatalogImageView(HomeAssistantView):
