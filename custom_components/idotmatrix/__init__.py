@@ -1,8 +1,10 @@
 """The iDotMatrix LED panel integration."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, Platform
 from homeassistant.core import HomeAssistant
@@ -12,6 +14,7 @@ from .client import IdotMatrixClient
 from .const import (
     CONF_PREFERRED_PROXY,
     DEFAULT_MIC_SENSITIVITY,
+    DOMAIN,
     PROXY_AUTO,
 )
 
@@ -51,7 +54,25 @@ class IdotMatrixData:
 IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
 
 
+CARD_URL = f"/{DOMAIN}/idotmatrix-card.js"
+
+
+async def _async_register_card(hass: HomeAssistant) -> None:
+    """Serve the bundled Lovelace card and auto-load it (once)."""
+    if hass.data.get(f"{DOMAIN}_card"):
+        return
+    hass.data[f"{DOMAIN}_card"] = True
+    js = os.path.join(os.path.dirname(__file__), "frontend", "idotmatrix-card.js")
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig(CARD_URL, js, False)]
+    )
+    from homeassistant.components.frontend import add_extra_js_url
+
+    add_extra_js_url(hass, CARD_URL)
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -> bool:
+    await _async_register_card(hass)
     address: str = entry.data[CONF_ADDRESS]
     preferred = entry.options.get(CONF_PREFERRED_PROXY, PROXY_AUTO)
     preferred_source = None if preferred == PROXY_AUTO else preferred
