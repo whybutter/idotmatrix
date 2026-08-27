@@ -215,6 +215,196 @@ class PokeSource(CatalogSource):
         return data, "image/gif"
 
 
+# --------------------------------------------------------------------------- #
+# Heaton — the official iDotMatrix app's own cloud catalog                     #
+#                                                                              #
+# Reverse-engineered from the APK and validated live. One signed+encrypted     #
+# endpoint lists assets; file_path is a direct CDN URL we proxy. Images live   #
+# under category_name="iPixels" (tab-agnostic); animations under "<tab>_IDM".  #
+# All secrets are baked into the app (no login/token). Personal-use interop     #
+# with a device the user owns.                                                 #
+# --------------------------------------------------------------------------- #
+class HeatonSource(CatalogSource):
+    id = "heaton"
+    name = "Catálogo app"
+
+    API_URL = "https://manage.heaton.com.cn/api/rm/getMaterialUnderCategory"
+    APP_KEY = "Jy47rzJAgKMfrcc92PamyyukQqB7wmFu"
+    IV = b"0000000000000000"
+    # (group id, label, category_name, type, is_gif). Images ignore the tab
+    # (always "iPixels"); animations encode the tab as "<tab>_IDM".
+    GROUPS = [
+        ("img", "Imágenes", "iPixels", "图片", False),
+        ("ani_daily", "Animados · Diario", "日常_IDM", "动画", True),
+        ("ani_holiday", "Animados · Festivos", "节日_IDM", "动画", True),
+        ("ani_emoji", "Animados · Emojis", "表情_IDM", "动画", True),
+        ("ani_creative", "Animados · Creativo", "创意_IDM", "动画", True),
+    ]
+    # The catalog is authored per asset-size; 32×32 has the richest set. We list
+    # at 32 and resize on send to whatever size the user picks.
+    LIST_SIZE = 32
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        super().__init__(hass)
+        self._img: dict[str, tuple[bytes, str]] = {}
+
+    # --- app crypto (md5 sign + AES-256-CBC body/response) ---
+    @staticmethod
+    def _java_url_encode(s: str) -> str:
+        out = []
+        for b in s.encode("utf-8"):
+            c = chr(b)
+            if c.isascii() and (c.isalnum() or c in ".*-_"):
+                out.append(c)
+            elif c == " ":
+                out.append("+")
+            else:
+                out.append("%%%02X" % b)
+        enc = "".join(out)
+        return enc.replace("%26", "&").replace("%3D", "=").replace("%3F", "?")
+
+    @classmethod
+    def _sorted_query(cls, params: dict) -> str:
+        return "&".join(f"{k}={params[k]}" for k in sorted(params))
+
+    def _sign(self, params: dict, random: str, timestamp: str) -> str:
+        import hashlib
+
+        signed = {**params, "random": random, "timestamp": timestamp,
+                  "app_key": self.APP_KEY}
+        return hashlib.md5(
+            self._java_url_encode(self._sorted_query(signed)).encode("utf-8")
+        ).hexdigest().lower()
+
+    def _aes(self):
+        from cryptography.hazmat.primitives.ciphers import (
+            Cipher,
+            algorithms,
+            modes,
+        )
+
+        return Cipher(algorithms.AES(self.APP_KEY.encode("ascii")), modes.CBC(self.IV))
+
+    def _encrypt(self, plain: str) -> str:
+        import base64
+
+        from cryptography.hazmat.primitives import padding
+
+        padder = padding.PKCS7(128).padder()
+        data = padder.update(plain.encode("utf-8")) + padder.finalize()
+        enc = self._aes().encryptor()
+        return base64.b64encode(enc.update(data) + enc.finalize()).decode("ascii")
+
+    def _decrypt(self, b64: str) -> str:
+        import base64
+
+        from cryptography.hazmat.primitives import padding
+
+        dec = self._aes().decryptor()
+        raw = dec.update(base64.b64decode(b64)) + dec.finalize()
+        unpadder = padding.PKCS7(128).unpadder()
+        return (unpadder.update(raw) + unpadder.finalize()).decode("utf-8")
+
+    async def _query(self, category_name: str, mtype: str, page: int, count: int) -> dict:
+        import random as _random
+        import string
+        import time
+
+        params = {
+            "appid": "140",
+            "sort": "1",
+            "page": str(page),
+            "count": str(count),
+            "category_name": category_name,
+            "type": mtype,
+            "width": str(self.LIST_SIZE),
+            "height": str(self.LIST_SIZE),
+            "label": "Product_",
+            "filter_tags": "IDM_",
+            "file_lang": "none,cn",
+        }
+        rnd = "".join(_random.choices(string.ascii_letters + string.digits, k=8))
+        ts = str(int(time.time() * 1000))
+        sign = self._sign(params, rnd, ts)
+        body = self._encrypt(self._java_url_encode(self._sorted_query(params)))
+        url = f"{self.API_URL}?sign={sign}&timestamp={ts}&random={rnd}"
+        session = async_get_clientsession(self._hass)
+        async with session.post(
+            url,
+            data=body,
+            headers={"Content-Type": "text/plain; charset=utf-8"},
+        ) as r:
+            r.raise_for_status()
+            text = await r.text()
+        import json
+
+        payload = json.loads(self._decrypt(text.strip()))
+        return payload.get("data") or {}
+
+    async def groups(self) -> list[dict]:
+        return [{"id": g[0], "name": g[1]} for g in self.GROUPS]
+
+    async def list_group(self, group: str, limit: int, offset: int) -> dict:
+        import base64
+
+        g = next((x for x in self.GROUPS if x[0] == group), None)
+        if g is None:
+            return {"items": [], "total": 0}
+        _, _, category_name, mtype, is_gif = g
+        page = offset // limit + 1
+        data = await self._query(category_name, mtype, page, limit)
+        items = []
+        for rec in data.get("records", []):
+            path = rec.get("file_path") or ""
+            if not path:
+                continue
+            ref = base64.urlsafe_b64encode(path.encode("utf-8")).decode("ascii").rstrip("=")
+            items.append(
+                {
+                    "ref": ref,
+                    "name": rec.get("label") or "",
+                    "is_gif": is_gif or rec.get("format") == "gif",
+                }
+            )
+        return {"items": items, "total": int(data.get("totalCount", 0))}
+
+    async def image(self, ref: str) -> tuple[bytes, str] | None:
+        import base64
+
+        if ref in self._img:
+            return self._img[ref]
+        try:
+            pad = "=" * (-len(ref) % 4)
+            url = base64.urlsafe_b64decode(ref + pad).decode("utf-8")
+        except Exception:  # noqa: BLE001
+            return None
+        if not url.startswith("http"):
+            return None
+        session = async_get_clientsession(self._hass)
+        try:
+            async with session.get(
+                url, headers={"User-Agent": "okhttp/4.9.0"}
+            ) as r:
+                if r.status != 200:
+                    return None
+                data = await r.read()
+        except Exception as err:  # noqa: BLE001
+            _LOGGER.debug("heaton image fetch failed: %s", err)
+            return None
+        # Sniff the real type (the CDN doesn't set a useful extension).
+        if data[:4] == b"GIF8":
+            ctype = "image/gif"
+        elif data[:8] == b"\x89PNG\r\n\x1a\n":
+            ctype = "image/png"
+        elif data[:2] == b"\xff\xd8":
+            ctype = "image/jpeg"
+        else:
+            ctype = "image/png"
+        result = (data, ctype)
+        self._img[ref] = result
+        return result
+
+
 class CatalogImageView(HomeAssistantView):
     """Serves catalog images same-origin (no auth — public art) so the frontend
     grid can use them directly as <img src>."""
@@ -232,7 +422,10 @@ class CatalogImageView(HomeAssistantView):
         src = self._sources.get(source)
         if src is None:
             return web.Response(status=404)
-        if not ref or any(c not in "0123456789ABCDEFabcdef._-" for c in ref):
+        # Allow hex (openmoji), digits (poke) and base64url refs (heaton file_path).
+        if not ref or any(
+            not (c.isalnum() or c in "._-~") for c in ref
+        ):
             return web.Response(status=400)
         result = await src.image(ref)
         if result is None:
@@ -248,7 +441,7 @@ class CatalogImageView(HomeAssistantView):
 @callback
 def async_register(hass: HomeAssistant) -> None:
     sources: dict[str, CatalogSource] = {}
-    for cls in (OpenMojiSource, PokeSource):
+    for cls in (HeatonSource, OpenMojiSource, PokeSource):
         src = cls(hass)
         sources[src.id] = src
     hass.data[f"{DOMAIN}_catalog"] = sources

@@ -28,6 +28,7 @@ const PAGE = 60;
 
 // Per-source attribution shown under the grid.
 const ATTRIBUTION: Record<string, string> = {
+  heaton: "Catálogo original de la app iDotMatrix",
   openmoji: "Emojis por OpenMoji (CC BY-SA 4.0)",
   poke: "Sprites de Pokémon © Nintendo / Game Freak — uso personal",
 };
