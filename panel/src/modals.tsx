@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Modal } from "./Modal";
 import { useHass } from "./hass-context";
 import { arrayBufferToBase64 } from "./idot";
+import { useBusyAction } from "./useBusyAction";
+import { IconSpinner } from "./icons";
 import type { IDotDevice } from "./types";
 
 interface BaseProps {
@@ -18,7 +20,7 @@ export function UploadModal({ device, onClose, notify }: BaseProps) {
   const [size, setSize] = useState<16 | 32 | 64>(32);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, run } = useBusyAction((m) => notify("Upload failed: " + m, true));
 
   const pick = (f: File | null) => {
     setFile(f);
@@ -26,10 +28,9 @@ export function UploadModal({ device, onClose, notify }: BaseProps) {
     setPreviewUrl(f ? URL.createObjectURL(f) : null);
   };
 
-  const upload = async () => {
+  const upload = () => {
     if (!file) return;
-    setBusy(true);
-    try {
+    run(async () => {
       const buf = await file.arrayBuffer();
       const b64 = arrayBufferToBase64(buf);
       const isGif = /gif$/i.test(file.type) || /\.gif$/i.test(file.name);
@@ -39,12 +40,9 @@ export function UploadModal({ device, onClose, notify }: BaseProps) {
         image_data: b64,
       });
       notify(isGif ? "GIF uploaded" : "Image uploaded");
-      onClose();
-    } catch (e) {
-      notify("Failed: " + (e as Error).message, true);
-    } finally {
-      setBusy(false);
-    }
+    }).then((ok) => {
+      if (ok) onClose();
+    });
   };
 
   return (
@@ -76,8 +74,18 @@ export function UploadModal({ device, onClose, notify }: BaseProps) {
         </label>
         {previewUrl && <img className="idot-preview-img" src={previewUrl} alt="preview" />}
       </div>
-      <button className="idot-btn" onClick={upload} disabled={busy || !file}>
-        {busy ? "Uploading…" : "Upload to panel"}
+      <button
+        className={"idot-btn" + (busy ? " st-busy" : "")}
+        onClick={upload}
+        disabled={busy || !file}
+      >
+        {busy ? (
+          <span className="idot-btn-status">
+            <IconSpinner /> &nbsp;Uploading…
+          </span>
+        ) : (
+          "Upload to panel"
+        )}
       </button>
     </Modal>
   );

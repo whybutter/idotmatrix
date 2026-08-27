@@ -295,6 +295,40 @@ export const CSS = `
 }
 .idot-empty h2 { color: var(--idot-text); margin-bottom: 8px; }
 
+/* ---------- Loading / status feedback ---------- */
+.idot-spin { animation: idot-rotate .8s linear infinite; transform-origin: center; }
+@keyframes idot-rotate { to { transform: rotate(360deg); } }
+
+/* Reusable status-flash on action buttons */
+.idot-btn.st-busy, .idot-inline-send.st-busy, .idot-quick-go.st-busy,
+.idot-size-btn.st-busy { opacity: .85; cursor: progress; }
+.idot-btn.st-success, .idot-inline-send.st-success { background: var(--success-color, #43a047); }
+.idot-quick-go.st-success { border-color: var(--success-color, #43a047); color: var(--success-color, #43a047); }
+.idot-btn.st-error, .idot-inline-send.st-error { background: var(--error-color, #db4437); }
+.idot-quick-go.st-error { border-color: var(--error-color, #db4437); color: var(--error-color, #db4437); }
+
+/* status glyph slot so button width stays stable */
+.idot-btn-status { display: inline-flex; align-items: center; justify-content: center; }
+
+/* Power switch pending pulse + tiny spinner */
+.idot-power.busy { cursor: progress; }
+.idot-switch.busy { animation: idot-pulse 1s ease-in-out infinite; }
+@keyframes idot-pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+.idot-power-spin { display: inline-flex; color: var(--idot-accent); }
+
+/* Status-card (power) pending state */
+.idot-status-card.busy { cursor: progress; }
+.idot-status-card .idot-status-icon.busy { color: var(--idot-accent); }
+
+/* ---------- Connecting placeholder ---------- */
+.idot-connecting {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 48px 20px; text-align: center; color: var(--idot-text-dim);
+}
+.idot-connecting .idot-spin { color: var(--idot-accent); }
+.idot-connecting-title { font-size: 1.02rem; font-weight: 600; color: var(--idot-text); }
+.idot-connecting-sub { font-size: .84rem; }
+
 .idot-hint { font-size: .78rem; color: var(--idot-text-dim); margin-top: -6px; margin-bottom: 14px; }
 
 /* Responsive: 4 cols wide -> 3 -> 2 narrow */

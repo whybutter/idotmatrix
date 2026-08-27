@@ -9,7 +9,17 @@ import {
   rgbToHex,
 } from "./idot";
 import type { IDotDevice } from "./types";
-import { IconClock, IconColor, IconEffect, IconMic, IconText } from "./icons";
+import {
+  IconAlert,
+  IconCheck,
+  IconClock,
+  IconColor,
+  IconEffect,
+  IconMic,
+  IconSpinner,
+  IconText,
+} from "./icons";
+import { useBusyAction, type ActionStatus } from "./useBusyAction";
 
 const PRESET_COLORS = [
   "#ff3b30",
@@ -36,40 +46,85 @@ function SectionHead({ icon, title }: { icon: React.ReactNode; title: string }) 
   );
 }
 
+function statusClass(status: ActionStatus): string {
+  switch (status) {
+    case "busy":
+      return " st-busy";
+    case "success":
+      return " st-success";
+    case "error":
+      return " st-error";
+    default:
+      return "";
+  }
+}
+
+/** Small glyph reflecting an action status; used inside buttons. */
+function StatusGlyph({ status, idle }: { status: ActionStatus; idle: React.ReactNode }) {
+  if (status === "busy")
+    return (
+      <span className="idot-btn-status">
+        <IconSpinner />
+      </span>
+    );
+  if (status === "success")
+    return (
+      <span className="idot-btn-status">
+        <IconCheck />
+      </span>
+    );
+  if (status === "error")
+    return (
+      <span className="idot-btn-status">
+        <IconAlert />
+      </span>
+    );
+  return <>{idle}</>;
+}
+
 /* ---------- Inline Color: tap swatch or picker to apply immediately ---------- */
 export function InlineColor({ device, notify }: Props) {
   const hass = useHass();
   const [hex, setHex] = useState(() => rgbToHex(getRgbColor(hass, device.lightEntityId)));
+  const { busy, run } = useBusyAction((m) => notify("Color failed: " + m, true));
+  const [pending, setPending] = useState<string | null>(null);
 
-  const apply = async (h: string) => {
+  const apply = (h: string) => {
     setHex(h);
-    try {
-      await hass.callService("light", "turn_on", {
+    setPending(h);
+    run(() =>
+      hass.callService("light", "turn_on", {
         entity_id: device.lightEntityId,
         rgb_color: hexToRgb(h),
-      });
-      notify("Color set");
-    } catch (e) {
-      notify("Failed: " + (e as Error).message, true);
-    }
+      })
+    ).then(() => setPending(null));
   };
 
   return (
     <div className="idot-card idot-section">
-      <SectionHead icon={<IconColor size={18} />} title="Color" />
+      <SectionHead
+        icon={busy ? <IconSpinner size={18} /> : <IconColor size={18} />}
+        title="Color"
+      />
       <div className="idot-inline-color">
         <input
           type="color"
           className="idot-color-input"
           value={hex}
+          disabled={busy}
           onChange={(e) => apply(e.target.value)}
           title="Custom color"
         />
         {PRESET_COLORS.map((c) => (
           <button
             key={c}
-            className={"idot-swatch" + (c.toLowerCase() === hex.toLowerCase() ? " active" : "")}
+            className={
+              "idot-swatch" +
+              (c.toLowerCase() === hex.toLowerCase() ? " active" : "") +
+              (busy && pending === c ? " st-busy" : "")
+            }
             style={{ background: c }}
+            disabled={busy}
             onClick={() => apply(c)}
             aria-label={c}
           />
@@ -83,25 +138,18 @@ export function InlineColor({ device, notify }: Props) {
 export function InlineText({ device, notify }: Props) {
   const hass = useHass();
   const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
+  const { status, busy, run } = useBusyAction((m) => notify("Text failed: " + m, true));
 
-  const send = async () => {
-    if (!text.trim()) return;
-    setBusy(true);
-    try {
-      await hass.callService("idotmatrix", "send_text", {
+  const send = () => {
+    if (!text.trim() || busy) return;
+    run(() =>
+      hass.callService("idotmatrix", "send_text", {
         entity_id: device.lightEntityId,
         text,
         mode: 1,
         speed: 50,
-      });
-      notify("Text sent");
-      setText("");
-    } catch (e) {
-      notify("Failed: " + (e as Error).message, true);
-    } finally {
-      setBusy(false);
-    }
+      })
+    ).then(() => setText(""));
   };
 
   return (
@@ -113,11 +161,65 @@ export function InlineText({ device, notify }: Props) {
           placeholder="Type a message to display…"
           value={text}
           maxLength={500}
+          disabled={busy}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
         />
-        <button className="idot-inline-send" onClick={send} disabled={busy || !text.trim()}>
-          {busy ? "…" : "Send"}
+        <button
+          className={"idot-inline-send" + statusClass(status)}
+          onClick={send}
+          disabled={busy || !text.trim()}
+        >
+          <StatusGlyph status={status} idle={<>Send</>} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- One quick-mode row with its own busy state ---------- */
+function QuickRow({
+  label,
+  icon,
+  options,
+  value,
+  onChange,
+  buttonLabel,
+  onFire,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  options: { value: number; label: string }[];
+  value: number;
+  onChange: (v: number) => void;
+  buttonLabel: string;
+  onFire: () => Promise<unknown>;
+}) {
+  const { status, busy, run } = useBusyAction();
+  return (
+    <div className="idot-quick">
+      <span className="idot-quick-label">
+        {icon} {label}
+      </span>
+      <div className="idot-quick-row">
+        <select
+          className="idot-select"
+          value={value}
+          disabled={busy}
+          onChange={(e) => onChange(+e.target.value)}
+        >
+          {options.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <button
+          className={"idot-quick-go" + statusClass(status)}
+          disabled={busy}
+          onClick={() => run(onFire)}
+        >
+          <StatusGlyph status={status} idle={<>{buttonLabel}</>} />
         </button>
       </div>
     </div>
@@ -131,94 +233,53 @@ export function InlineModes({ device, notify }: Props) {
   const [effect, setEffect] = useState(0);
   const [mic, setMic] = useState(1);
 
-  const call = async (service: string, data: Record<string, unknown>, ok: string) => {
-    try {
-      await hass.callService("idotmatrix", service, {
-        entity_id: device.lightEntityId,
-        ...data,
+  const call = (service: string, data: Record<string, unknown>, ok: string, err: string) =>
+    hass
+      .callService("idotmatrix", service, { entity_id: device.lightEntityId, ...data })
+      .then((r) => {
+        notify(ok);
+        return r;
+      })
+      .catch((e) => {
+        notify(err + ": " + (e as Error).message, true);
+        throw e;
       });
-      notify(ok);
-    } catch (e) {
-      notify("Failed: " + (e as Error).message, true);
-    }
-  };
 
   return (
     <div className="idot-card idot-section">
       <SectionHead icon={<IconEffect size={18} />} title="Quick modes" />
       <div className="idot-quick-grid">
-        <div className="idot-quick">
-          <span className="idot-quick-label">
-            <IconClock size={13} /> Clock
-          </span>
-          <div className="idot-quick-row">
-            <select
-              className="idot-select"
-              value={clock}
-              onChange={(e) => setClock(+e.target.value)}
-            >
-              {CLOCK_STYLES.map((s, i) => (
-                <option key={i} value={i}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              className="idot-quick-go"
-              onClick={() =>
-                call("show_clock", { style: clock, show_date: true, hour24: true }, "Clock set")
-              }
-            >
-              Show
-            </button>
-          </div>
-        </div>
-
-        <div className="idot-quick">
-          <span className="idot-quick-label">
-            <IconEffect size={13} /> Effect
-          </span>
-          <div className="idot-quick-row">
-            <select
-              className="idot-select"
-              value={effect}
-              onChange={(e) => setEffect(+e.target.value)}
-            >
-              {EFFECT_STYLES.map((s, i) => (
-                <option key={i} value={i}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              className="idot-quick-go"
-              onClick={() => call("show_effect", { style: effect }, "Effect applied")}
-            >
-              Show
-            </button>
-          </div>
-        </div>
-
-        <div className="idot-quick">
-          <span className="idot-quick-label">
-            <IconMic size={13} /> Mic rhythm
-          </span>
-          <div className="idot-quick-row">
-            <select className="idot-select" value={mic} onChange={(e) => setMic(+e.target.value)}>
-              {MIC_STYLES.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
-              ))}
-            </select>
-            <button
-              className="idot-quick-go"
-              onClick={() => call("mic_rhythm", { style: mic, sensitivity: 50 }, "Mic rhythm on")}
-            >
-              Start
-            </button>
-          </div>
-        </div>
+        <QuickRow
+          label="Clock"
+          icon={<IconClock size={13} />}
+          options={CLOCK_STYLES.map((s, i) => ({ value: i, label: s }))}
+          value={clock}
+          onChange={setClock}
+          buttonLabel="Show"
+          onFire={() =>
+            call("show_clock", { style: clock, show_date: true, hour24: true }, "Clock set", "Clock")
+          }
+        />
+        <QuickRow
+          label="Effect"
+          icon={<IconEffect size={13} />}
+          options={EFFECT_STYLES.map((s, i) => ({ value: i, label: s }))}
+          value={effect}
+          onChange={setEffect}
+          buttonLabel="Show"
+          onFire={() => call("show_effect", { style: effect }, "Effect applied", "Effect")}
+        />
+        <QuickRow
+          label="Mic rhythm"
+          icon={<IconMic size={13} />}
+          options={MIC_STYLES}
+          value={mic}
+          onChange={setMic}
+          buttonLabel="Start"
+          onFire={() =>
+            call("mic_rhythm", { style: mic, sensitivity: 50 }, "Mic rhythm on", "Mic")
+          }
+        />
       </div>
     </div>
   );

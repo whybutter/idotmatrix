@@ -59,10 +59,14 @@ PANEL_URL = f"/{DOMAIN}/idotmatrix-panel.js"
 
 
 async def _async_register_frontend(hass: HomeAssistant) -> None:
-    """Serve + register the bundled Lovelace card and sidebar panel (once)."""
+    """Serve + register the card/panel and gallery WS commands (once)."""
     if hass.data.get(f"{DOMAIN}_frontend"):
         return
     hass.data[f"{DOMAIN}_frontend"] = True
+
+    from .gallery import async_register as async_register_gallery
+
+    async_register_gallery(hass)
     fdir = os.path.join(os.path.dirname(__file__), "frontend")
     await hass.http.async_register_static_paths(
         [

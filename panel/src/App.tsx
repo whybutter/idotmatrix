@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useHass } from "./hass-context";
-import { discoverDevices, getBrightnessPct, isLightOn } from "./idot";
+import { discoverDevices, getBrightnessPct, isAvailable, isLightOn } from "./idot";
 import type { IDotDevice } from "./types";
 import {
   IconAlbum,
@@ -11,10 +11,12 @@ import {
   IconImage,
   IconPower,
   IconScore,
+  IconSpinner,
   IconTimer,
 } from "./icons";
 import { UploadModal } from "./modals";
 import { InlineColor, InlineModes, InlineText } from "./InlineControls";
+import { useBusyAction } from "./useBusyAction";
 
 type ModalKey = "upload" | null;
 
@@ -88,32 +90,30 @@ export function App() {
     window.setTimeout(() => setToast(null), 2600);
   };
 
+  const power = useBusyAction((m) => notify("Power failed: " + m, true));
+  const bright = useBusyAction((m) => notify("Brightness failed: " + m, true));
+
   const device = devices?.find((d) => d.lightEntityId === selected) ?? null;
   const entityId = device?.lightEntityId ?? "";
+  const available = device ? isAvailable(hass, entityId) : false;
+  // "missing" (no state at all) vs "unavailable" — both hide controls, but we
+  // word the placeholder slightly differently.
+  const entityMissing = device ? !hass.states[entityId] : false;
   const on = device ? isLightOn(hass, entityId) : false;
   const brightness = device ? getBrightnessPct(hass, entityId) : 0;
 
-  const togglePower = async () => {
-    if (!device) return;
-    try {
-      await hass.callService("light", on ? "turn_off" : "turn_on", {
-        entity_id: entityId,
-      });
-    } catch (e) {
-      notify("Power failed: " + (e as Error).message, true);
-    }
+  const togglePower = () => {
+    if (!device || power.busy) return;
+    power.run(() =>
+      hass.callService("light", on ? "turn_off" : "turn_on", { entity_id: entityId })
+    );
   };
 
-  const setBrightness = async (pct: number) => {
+  const setBrightness = (pct: number) => {
     if (!device) return;
-    try {
-      await hass.callService("light", "turn_on", {
-        entity_id: entityId,
-        brightness_pct: pct,
-      });
-    } catch (e) {
-      notify("Brightness failed: " + (e as Error).message, true);
-    }
+    bright.run(() =>
+      hass.callService("light", "turn_on", { entity_id: entityId, brightness_pct: pct })
+    );
   };
 
   if (devices === null) {
@@ -160,110 +160,168 @@ export function App() {
             </div>
           </div>
 
-          <div className="idot-header-controls">
-            <div className="idot-bright" title="Brightness">
-              <IconBrightness />
-              <input
-                type="range"
-                className="idot-slider"
-                min={1}
-                max={100}
-                value={brightness || 1}
-                disabled={!on}
-                onChange={(e) => setBrightness(+e.target.value)}
-              />
-              <span className="idot-bright-val">{on ? brightness + "%" : "—"}</span>
-            </div>
+          {available && (
+            <div className="idot-header-controls">
+              <div className="idot-bright" title="Brightness">
+                <IconBrightness />
+                <input
+                  type="range"
+                  className="idot-slider"
+                  min={1}
+                  max={100}
+                  value={brightness || 1}
+                  disabled={!on}
+                  onChange={(e) => setBrightness(+e.target.value)}
+                />
+                <span className="idot-bright-val">
+                  {bright.busy ? (
+                    <IconSpinner size={13} />
+                  ) : on ? (
+                    brightness + "%"
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </div>
 
-            <div className="idot-power" onClick={togglePower} role="button" tabIndex={0}>
-              <span className="idot-power-label">{on ? "ON" : "OFF"}</span>
-              <span className={"idot-switch" + (on ? " on" : "")}>
-                <span className="knob" />
-              </span>
+              <div
+                className={"idot-power" + (power.busy ? " busy" : "")}
+                onClick={togglePower}
+                role="button"
+                tabIndex={0}
+              >
+                <span className="idot-power-label">{on ? "ON" : "OFF"}</span>
+                {power.busy ? (
+                  <span className="idot-power-spin">
+                    <IconSpinner size={22} />
+                  </span>
+                ) : (
+                  <span className={"idot-switch" + (on ? " on" : "")}>
+                    <span className="knob" />
+                  </span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
         </header>
 
-        {/* Hero preview (compact, centered) */}
-        <div className="idot-card idot-hero">
-          <div
-            className="idot-hero-panel"
-            style={{ gridTemplateColumns: `repeat(${HERO_COLS}, var(--cell))` }}
-          >
-            {hero.map((c, i) => (
-              <div key={i} className="px" style={{ background: on ? c : "#12161d" }} />
-            ))}
-          </div>
-          <div className="idot-hero-caption">iDotMatrix</div>
-        </div>
-
-        {/* Status row */}
-        <div className="idot-status-row">
+        {/* Device switcher stays visible so the user can pick a device even
+            while a panel is connecting. */}
+        {devices.length > 1 && (
           <div className="idot-card idot-status-card">
             <div className="idot-status-icon">
               <IconDevice />
             </div>
             <div>
-              <div className="idot-status-title">Device connection</div>
+              <div className="idot-status-title">Device</div>
               <div className="idot-status-sub">{device?.name}</div>
             </div>
-            {devices.length > 1 ? (
-              <select
-                className="idot-device-select"
-                value={selected ?? ""}
-                onChange={(e) => setSelected(e.target.value)}
-              >
-                {devices.map((d) => (
-                  <option key={d.lightEntityId} value={d.lightEntityId}>
-                    {d.name}
-                  </option>
-                ))}
-              </select>
+            <select
+              className="idot-device-select"
+              value={selected ?? ""}
+              onChange={(e) => setSelected(e.target.value)}
+            >
+              {devices.map((d) => (
+                <option key={d.lightEntityId} value={d.lightEntityId}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {!available ? (
+          /* Gate: only show the full control surface once the panel is reachable. */
+          <div className="idot-card idot-connecting">
+            {entityMissing ? (
+              <>
+                <div className="idot-connecting-title">Panel no disponible</div>
+                <div className="idot-connecting-sub">
+                  Esperando a que el panel esté disponible en Home Assistant…
+                </div>
+              </>
             ) : (
-              <span className="idot-dot" style={{ marginLeft: "auto" }} />
+              <>
+                <IconSpinner size={34} />
+                <div className="idot-connecting-title">Conectando con el panel…</div>
+                <div className="idot-connecting-sub">Esto puede tardar unos segundos (BLE).</div>
+              </>
             )}
           </div>
-
-          <div
-            className="idot-card idot-status-card power-card"
-            onClick={togglePower}
-            role="button"
-            tabIndex={0}
-          >
-            <div className={"idot-status-icon" + (on ? " on" : "")}>
-              <IconPower />
+        ) : (
+          <>
+            {/* Hero preview (compact, centered) */}
+            <div className="idot-card idot-hero">
+              <div
+                className="idot-hero-panel"
+                style={{ gridTemplateColumns: `repeat(${HERO_COLS}, var(--cell))` }}
+              >
+                {hero.map((c, i) => (
+                  <div key={i} className="px" style={{ background: on ? c : "#12161d" }} />
+                ))}
+              </div>
+              <div className="idot-hero-caption">iDotMatrix</div>
             </div>
-            <div>
-              <div className="idot-status-title">{on ? "ON" : "OFF"}</div>
-              <div className="idot-status-sub">Tap to turn {on ? "off" : "on"}</div>
-            </div>
-            <span className={"idot-dot" + (on ? "" : " off")} style={{ marginLeft: "auto" }} />
-          </div>
-        </div>
 
-        {/* Inline quick controls */}
-        {device && <InlineColor device={device} notify={notify} />}
-        {device && <InlineText device={device} notify={notify} />}
-        {device && <InlineModes device={device} notify={notify} />}
+            {/* Status row */}
+            <div className="idot-status-row">
+              <div className="idot-card idot-status-card">
+                <div className="idot-status-icon">
+                  <IconDevice />
+                </div>
+                <div>
+                  <div className="idot-status-title">Device connection</div>
+                  <div className="idot-status-sub">{device?.name}</div>
+                </div>
+                <span className="idot-dot" style={{ marginLeft: "auto" }} />
+              </div>
 
-        {/* Remaining tiles: Upload (modal) + coming-soon stubs */}
-        <div className="idot-grid">
-          {TILES.map((t) => (
-            <div
-              key={t.key}
-              className={"idot-tile" + (t.soon ? " soon" : "")}
-              onClick={() => !t.soon && t.modal && setModal(t.modal)}
-              role="button"
-              tabIndex={t.soon ? -1 : 0}
-            >
-              <div className="idot-tile-icon">{t.icon}</div>
-              <div className="idot-tile-body">
-                <div className="idot-tile-label">{t.label}</div>
-                {t.soon && <div className="idot-soon-badge">Próximamente</div>}
+              <div
+                className={"idot-card idot-status-card power-card" + (power.busy ? " busy" : "")}
+                onClick={togglePower}
+                role="button"
+                tabIndex={0}
+              >
+                <div className={"idot-status-icon" + (power.busy ? " busy" : on ? " on" : "")}>
+                  {power.busy ? <IconSpinner size={22} /> : <IconPower />}
+                </div>
+                <div>
+                  <div className="idot-status-title">
+                    {power.busy ? "…" : on ? "ON" : "OFF"}
+                  </div>
+                  <div className="idot-status-sub">
+                    {power.busy ? "Working…" : `Tap to turn ${on ? "off" : "on"}`}
+                  </div>
+                </div>
+                <span className={"idot-dot" + (on ? "" : " off")} style={{ marginLeft: "auto" }} />
               </div>
             </div>
-          ))}
-        </div>
+
+            {/* Inline quick controls */}
+            {device && <InlineColor device={device} notify={notify} />}
+            {device && <InlineText device={device} notify={notify} />}
+            {device && <InlineModes device={device} notify={notify} />}
+
+            {/* Remaining tiles: Upload (modal) + coming-soon stubs */}
+            <div className="idot-grid">
+              {TILES.map((t) => (
+                <div
+                  key={t.key}
+                  className={"idot-tile" + (t.soon ? " soon" : "")}
+                  onClick={() => !t.soon && t.modal && setModal(t.modal)}
+                  role="button"
+                  tabIndex={t.soon ? -1 : 0}
+                >
+                  <div className="idot-tile-icon">{t.icon}</div>
+                  <div className="idot-tile-body">
+                    <div className="idot-tile-label">{t.label}</div>
+                    {t.soon && <div className="idot-soon-badge">Próximamente</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Upload modal (needs file picker + size + preview) */}

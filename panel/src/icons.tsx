@@ -109,6 +109,32 @@ export const IconPower = ({ size = 22 }: P): JSX.Element => (
   </svg>
 );
 
+export const IconSpinner = ({ size = 16 }: P): JSX.Element => (
+  <svg width={size} height={size} viewBox="0 0 24 24" className="idot-spin" aria-hidden>
+    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth={2.4} opacity={0.25} />
+    <path
+      d="M21 12a9 9 0 0 0-9-9"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.4}
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+export const IconCheck = ({ size = 16 }: P): JSX.Element => (
+  <svg {...base(size)} strokeWidth={2.4}>
+    <path d="M5 12.5l4.5 4.5L19 6.5" />
+  </svg>
+);
+
+export const IconAlert = ({ size = 16 }: P): JSX.Element => (
+  <svg {...base(size)} strokeWidth={2.2}>
+    <path d="M12 8v5M12 16.5v.01" />
+    <circle cx="12" cy="12" r="9" />
+  </svg>
+);
+
 export const IconDevice = ({ size = 24 }: P): JSX.Element => (
   <svg {...base(size)}>
     <rect x="2.5" y="5" width="13" height="10" rx="1.5" />

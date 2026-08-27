@@ -120,6 +120,15 @@ export function isLightOn(hass: Hass, entityId: string): boolean {
   return hass.states[entityId]?.state === "on";
 }
 
+/**
+ * A device is "available" once its light entity exists and its state is not
+ * "unavailable"/"unknown" — i.e. HA reports the BLE panel as reachable.
+ */
+export function isAvailable(hass: Hass, entityId: string): boolean {
+  const s = hass.states[entityId]?.state;
+  return s === "on" || s === "off";
+}
+
 export function getBrightnessPct(hass: Hass, entityId: string): number {
   const b = hass.states[entityId]?.attributes?.brightness;
   if (typeof b !== "number") return 100;
