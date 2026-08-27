@@ -48,5 +48,28 @@ ATTR_COUNT2 = "count2"
 CHRONOGRAPH_ACTIONS = {"reset": 0, "start": 1, "pause": 2, "resume": 3}
 COUNTDOWN_ACTIONS = {"stop": 0, "start": 1, "pause": 2, "restart": 3}
 
+# Named clock/effect styles -> style byte, so the UI shows labels not numbers.
+CLOCK_STYLES = {
+    "rgb_swipe_outline": 0,
+    "christmas_tree": 1,
+    "checkers": 2,
+    "color": 3,
+    "hourglass": 4,
+    "alarm_clock": 5,
+    "outlines": 6,
+    "rgb_corners": 7,
+}
+EFFECT_STYLES = {
+    "horizontal_rainbow": 0,
+    "random_colored_pixels": 1,
+    "random_white_pixels": 2,
+    "vertical_rainbow": 3,
+    "diagonal_right_rainbow": 4,
+    "diagonal_left_rainbow": 5,
+    "random_colored_pixels_alt": 6,
+}
+# Sensible default palette so an effect can be fired with just a style.
+DEFAULT_EFFECT_COLORS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+
 PANEL_SIZES = (16, 32, 64)
 DEFAULT_PANEL_SIZE = 32

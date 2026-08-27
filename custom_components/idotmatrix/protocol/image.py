@@ -4,8 +4,8 @@ Source of truth: the official Android app's `sendDIYImageData` (BleProtocolN.jav
 as decompiled/ported by the maintained fork (Toon-nooT/idotmatrix-api-client).
 
 The payload is RAW pixel bytes (width * height * 3), NOT an encoded PNG/GIF
-file. Pixel order is G,R,B per pixel (see light._prepare_pixels — confirmed by
-disassembling the app's LedView.getColorData). It is split into 4096-byte
+file. Pixel order is R,G,B per pixel (see light._prepare_pixels — the app's
+photo-upload path BGRUtils.bitmap2RGB emits R,G,B). It is split into 4096-byte
 chunks, each wrapped with a 9-byte header:
 
     [len(chunk) + 9 as int16 LE] + [0, 0, flag] + [total_len as int32 LE]

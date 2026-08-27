@@ -186,10 +186,11 @@ def _prepare_pixels(file_path: str, size: int) -> bytes:
     """Normalize any input image to the panel's raw pixel bytes (blocking; run
     in executor).
 
-    The panel's DIY upload wants raw pixel data in G,R,B order (not R,G,B, and
-    not an encoded file) — confirmed by disassembling the official app's
-    LedView.getColorData, which stores green, then red, then blue per pixel.
-    Sending R,G,B leaves the panel blank/wrong.
+    The bulk image-upload path wants raw R,G,B pixel data, row-major (not an
+    encoded file). Confirmed by disassembling the official app: the photo
+    upload path (BGRUtils.bitmap2RGB) emits R,G,B, matching the maintained
+    fork's img.tobytes(). (The G,R,B order in LedView.getColorData belongs to
+    the separate interactive-draw screen, not this path.)
     """
     from PIL import Image, ImageOps
 
@@ -198,5 +199,4 @@ def _prepare_pixels(file_path: str, size: int) -> bytes:
         img = img.convert("RGB")
         if img.size != (size, size):
             img = img.resize((size, size), Image.LANCZOS)
-        r, g, b = img.split()
-        return Image.merge("RGB", (g, r, b)).tobytes()
+        return img.tobytes()
