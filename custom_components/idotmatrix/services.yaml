@@ -49,14 +49,19 @@ show_clock:
   fields:
     style:
       name: Style
-      description: "Clock style 0-7: 0 RGB-swipe outline, 1 Christmas tree, 2 checkers, 3 color, 4 hourglass, 5 alarm clock, 6 outlines, 7 RGB corners."
       required: false
-      default: 0
+      default: rgb_swipe_outline
       selector:
-        number:
-          min: 0
-          max: 7
-          mode: box
+        select:
+          options:
+            - rgb_swipe_outline
+            - christmas_tree
+            - checkers
+            - color
+            - hourglass
+            - alarm_clock
+            - outlines
+            - rgb_corners
     show_date:
       name: Show date
       required: false
@@ -86,17 +91,22 @@ show_effect:
   fields:
     style:
       name: Style
-      description: "Effect style 0-6: 0 horizontal rainbow, 1 random colored pixels, 2 random white pixels, 3 vertical rainbow, 4 diagonal-right rainbow, 5 diagonal-left rainbow, 6 random colored pixels."
-      required: true
+      required: false
+      default: horizontal_rainbow
       selector:
-        number:
-          min: 0
-          max: 6
-          mode: box
+        select:
+          options:
+            - horizontal_rainbow
+            - random_colored_pixels
+            - random_white_pixels
+            - vertical_rainbow
+            - diagonal_right_rainbow
+            - diagonal_left_rainbow
+            - random_colored_pixels_alt
     colors:
       name: Colors
-      description: List of 2-7 RGB colors used by the effect.
-      required: true
+      description: "Optional list of 2-7 RGB colors, e.g. [[255,0,0],[0,0,255]]. Defaults to a red/green/blue palette if omitted."
+      required: false
       selector:
         object:
 

@@ -26,8 +26,11 @@ from .const import (
     ATTR_SIZE,
     ATTR_STYLE,
     CHRONOGRAPH_ACTIONS,
+    CLOCK_STYLES,
     COUNTDOWN_ACTIONS,
+    DEFAULT_EFFECT_COLORS,
     DEFAULT_PANEL_SIZE,
+    EFFECT_STYLES,
     MAX_BRIGHTNESS_PCT,
     MIN_BRIGHTNESS_PCT,
     PANEL_SIZES,
@@ -75,7 +78,10 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SHOW_CLOCK,
         {
-            vol.Optional(ATTR_STYLE, default=0): vol.All(int, vol.Range(0, 7)),
+            # Accept either a named style ("color") or the raw 0-7 int.
+            vol.Optional(ATTR_STYLE, default="rgb_swipe_outline"): vol.Any(
+                vol.In(CLOCK_STYLES), vol.All(int, vol.Range(0, 7))
+            ),
             vol.Optional(ATTR_SHOW_DATE, default=True): cv.boolean,
             vol.Optional(ATTR_HOUR24, default=True): cv.boolean,
             vol.Optional(ATTR_RGB_COLOR, default=(255, 255, 255)): _RGB,
@@ -85,8 +91,14 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_SHOW_EFFECT,
         {
-            vol.Required(ATTR_STYLE): vol.All(int, vol.Range(0, 6)),
-            vol.Required(ATTR_COLORS): vol.All([_RGB], vol.Length(min=2, max=7)),
+            vol.Optional(ATTR_STYLE, default="horizontal_rainbow"): vol.Any(
+                vol.In(EFFECT_STYLES), vol.All(int, vol.Range(0, 6))
+            ),
+            # Colors optional: a sensible RGB palette is used if omitted, so the
+            # effect can be fired by just picking a style.
+            vol.Optional(ATTR_COLORS, default=DEFAULT_EFFECT_COLORS): vol.All(
+                [_RGB], vol.Length(min=2, max=7)
+            ),
         },
         "async_show_effect",
     )
@@ -156,19 +168,23 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
 
     async def async_show_clock(
         self,
-        style: int,
+        style: int | str,
         show_date: bool,
         hour24: bool,
         rgb_color: tuple[int, int, int],
     ) -> None:
+        style_int = CLOCK_STYLES.get(style, style) if isinstance(style, str) else style
         await self._run(
-            self._client.show_clock(style, show_date, hour24, *rgb_color)
+            self._client.show_clock(style_int, show_date, hour24, *rgb_color)
         )
 
     async def async_show_effect(
-        self, style: int, colors: list[tuple[int, int, int]]
+        self, style: int | str, colors: list[tuple[int, int, int]]
     ) -> None:
-        await self._run(self._client.show_effect(style, colors))
+        style_int = (
+            EFFECT_STYLES.get(style, style) if isinstance(style, str) else style
+        )
+        await self._run(self._client.show_effect(style_int, colors))
 
     async def async_chronograph(self, action: str) -> None:
         await self._run(self._client.chronograph(CHRONOGRAPH_ACTIONS[action]))
