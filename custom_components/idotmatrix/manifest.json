@@ -1,11 +1,13 @@
 {
   "domain": "idotmatrix",
   "name": "iDotMatrix LED Panel",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "integration_type": "device",
   "documentation": "https://github.com/whybutter/idotmatrix",
   "issue_tracker": "https://github.com/whybutter/idotmatrix/issues",
-  "codeowners": ["@marco"],
+  "codeowners": [
+    "@marco"
+  ],
   "config_flow": true,
   "iot_class": "local_push",
   "bluetooth": [
@@ -13,6 +15,11 @@
       "local_name": "IDM-*"
     }
   ],
-  "requirements": ["bleak-retry-connector>=3.4.0", "Pillow>=10.0.0"],
-  "dependencies": ["bluetooth_adapters"]
+  "requirements": [
+    "bleak-retry-connector>=3.4.0",
+    "Pillow>=10.0.0"
+  ],
+  "dependencies": [
+    "bluetooth_adapters"
+  ]
 }

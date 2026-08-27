@@ -13,13 +13,12 @@ READ_CHAR_UUID = "0000fa03-0000-1000-8000-00805f9b34fb"
 # next write-without-response (empirical, confirmed by the maintained forks).
 COMMAND_SETTLE_SECONDS = 0.5
 
-# Drop the BLE connection after this much idle time. An ESPHome-style active
-# proxy has a small number of concurrent connection slots; holding one open
-# forever would starve other BLE devices (e.g. Tuya thermometers) behind the
-# same proxy. Kept long enough that back-to-back commands/uploads reuse one
-# connection instead of reconnecting each time (reconnect is the slow part,
-# not the transfer), but short enough to release the slot fairly soon after.
-IDLE_DISCONNECT_SECONDS = 90.0
+# Drop the BLE connection after this much idle time. Reconnecting (not the
+# transfer) is the slow part, so a long timeout keeps the panel responsive by
+# reusing one connection across a whole usage session. An ESPHome-style proxy
+# has few connectable slots, so we still release it after prolonged idle rather
+# than holding one forever.
+IDLE_DISCONNECT_SECONDS = 600.0
 
 # Pacing between BLE sub-writes during a bulk (image/GIF) transfer. Bulk data
 # is sent write-WITHOUT-response (write-with-response gives GATT error 133 over
