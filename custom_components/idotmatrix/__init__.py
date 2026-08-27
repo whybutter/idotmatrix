@@ -55,6 +55,7 @@ IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
 
 
 CARD_URL = f"/{DOMAIN}/idotmatrix-card.js"
+SCOREBOARD_CARD_URL = f"/{DOMAIN}/idotmatrix-scoreboard-card.js"
 PANEL_URL = f"/{DOMAIN}/idotmatrix-panel.js"
 
 
@@ -75,12 +76,18 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig(CARD_URL, os.path.join(fdir, "idotmatrix-card.js"), False),
+            StaticPathConfig(
+                SCOREBOARD_CARD_URL,
+                os.path.join(fdir, "idotmatrix-scoreboard-card.js"),
+                False,
+            ),
             StaticPathConfig(PANEL_URL, os.path.join(fdir, "idotmatrix-panel.js"), False),
         ]
     )
     from homeassistant.components.frontend import add_extra_js_url
 
     add_extra_js_url(hass, CARD_URL)
+    add_extra_js_url(hass, SCOREBOARD_CARD_URL)
 
     from homeassistant.components import panel_custom
 
