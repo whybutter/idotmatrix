@@ -18,8 +18,9 @@ import { UploadModal } from "./modals";
 import { InlineColor, InlineModes, InlineText } from "./InlineControls";
 import { useBusyAction } from "./useBusyAction";
 import { Gallery } from "./Gallery";
+import { Albums } from "./Albums";
 
-type View = "home" | "gallery";
+type View = "home" | "gallery" | "albums";
 
 type ModalKey = "upload" | null;
 
@@ -37,10 +38,10 @@ interface Tile {
 const TILES: Tile[] = [
   { key: "upload", label: "Upload image", icon: <IconImage size={22} />, modal: "upload" },
   { key: "gallery", label: "Galería", icon: <IconGif size={22} />, view: "gallery" },
+  { key: "albums", label: "Álbumes", icon: <IconAlbum size={22} />, view: "albums" },
   { key: "graffiti", label: "Graffiti", icon: <IconGraffiti size={22} />, soon: true },
   { key: "score", label: "Scoreboard", icon: <IconScore size={22} />, soon: true },
   { key: "timers", label: "Timers", icon: <IconTimer size={22} />, soon: true },
-  { key: "albums", label: "Albums", icon: <IconAlbum size={22} />, soon: true },
 ];
 
 // Deterministic pixel-art "city skyline at sunset" for the hero preview.
@@ -228,6 +229,14 @@ export function App() {
           >
             Galería
           </button>
+          <button
+            className={"idot-tab" + (view === "albums" ? " active" : "")}
+            onClick={() => setView("albums")}
+            role="tab"
+            aria-selected={view === "albums"}
+          >
+            Álbumes
+          </button>
         </div>
 
         {/* Device switcher stays visible so the user can pick a device even
@@ -255,9 +264,13 @@ export function App() {
           </div>
         )}
 
-        {view === "gallery" ? (
+        {view === "gallery" || view === "albums" ? (
           device ? (
-            <Gallery device={device} notify={notify} />
+            view === "gallery" ? (
+              <Gallery device={device} notify={notify} />
+            ) : (
+              <Albums device={device} available={available} notify={notify} />
+            )
           ) : (
             <div className="idot-card idot-connecting">
               <div className="idot-connecting-title">Sin dispositivo</div>
@@ -344,7 +357,11 @@ export function App() {
                 <div
                   key={t.key}
                   className={"idot-tile" + (t.soon ? " soon" : "")}
-                  onClick={() => !t.soon && t.modal && setModal(t.modal)}
+                  onClick={() => {
+                    if (t.soon) return;
+                    if (t.view) setView(t.view);
+                    else if (t.modal) setModal(t.modal);
+                  }}
                   role="button"
                   tabIndex={t.soon ? -1 : 0}
                 >

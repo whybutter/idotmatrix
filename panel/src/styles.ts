@@ -209,6 +209,61 @@ export const CSS = `
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
+/* ---------- Albums ---------- */
+.idot-album-list { display: flex; flex-direction: column; gap: 12px; }
+.idot-album-card {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  border: 1px solid var(--idot-border); border-radius: 10px; padding: 14px;
+  background: var(--idot-bg);
+}
+.idot-album-card.playing { border-color: var(--idot-accent); }
+.idot-album-info { flex: 1; min-width: 180px; }
+.idot-album-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.idot-album-name { font-weight: 600; font-size: .96rem; }
+.idot-album-badge {
+  font-size: .62rem; font-weight: 700; letter-spacing: .3px;
+  background: var(--idot-accent); color: #fff; padding: 2px 8px; border-radius: 999px;
+}
+.idot-album-meta { font-size: .78rem; color: var(--idot-text-dim); margin-bottom: 8px; }
+.idot-album-thumbs { display: flex; align-items: center; gap: 5px; }
+.idot-album-thumb {
+  width: 34px; height: 34px; border-radius: 6px; object-fit: cover; image-rendering: pixelated;
+  background: #050308; border: 1px solid var(--idot-border);
+}
+.idot-album-more, .idot-album-empty {
+  font-size: .74rem; color: var(--idot-text-dim); padding: 0 4px;
+}
+.idot-album-actions { display: flex; align-items: center; gap: 8px; }
+.idot-album-actions .idot-quick-go { min-width: 92px; display: inline-flex; justify-content: center; }
+.idot-quick-go.st-danger { border-color: var(--error-color, #db4437); color: var(--error-color, #db4437); }
+.idot-quick-go.st-danger:hover { background: color-mix(in srgb, var(--error-color, #db4437) 12%, transparent); }
+
+.idot-icon-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--idot-border);
+  background: transparent; color: var(--idot-text-dim); cursor: pointer;
+  display: grid; place-items: center;
+}
+.idot-icon-btn:hover { color: var(--idot-text); background: var(--idot-hover); }
+.idot-icon-btn.danger:hover { color: #fff; background: var(--error-color, #db4437); border-color: transparent; }
+
+/* Multi-select thumbnail grid (album editor) */
+.idot-select-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(66px, 1fr)); gap: 8px;
+  max-height: 260px; overflow-y: auto; padding: 2px;
+}
+.idot-select-thumb {
+  position: relative; aspect-ratio: 1/1; border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 2px solid var(--idot-border); background: #050308; padding: 0;
+}
+.idot-select-thumb img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; }
+.idot-select-thumb.on { border-color: var(--idot-accent); }
+.idot-select-thumb:not(.on) img { opacity: .55; }
+.idot-select-order {
+  position: absolute; top: 3px; right: 3px; min-width: 18px; height: 18px; padding: 0 4px;
+  border-radius: 999px; background: var(--idot-accent); color: #fff;
+  font-size: .68rem; font-weight: 700; display: grid; place-items: center;
+}
+
 /* Modal action row + secondary/danger buttons */
 .idot-modal-actions { display: flex; gap: 10px; }
 .idot-modal-actions .idot-btn, .idot-modal-actions .idot-btn-secondary { flex: 1; }

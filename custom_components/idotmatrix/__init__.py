@@ -67,6 +67,10 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     from .gallery import async_register as async_register_gallery
 
     async_register_gallery(hass)
+
+    from .albums import async_register as async_register_albums
+
+    async_register_albums(hass)
     fdir = os.path.join(os.path.dirname(__file__), "frontend")
     await hass.http.async_register_static_paths(
         [
@@ -121,6 +125,8 @@ async def _async_reload_on_options(
 async def async_unload_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
+        if (mgr := hass.data.get(f"{DOMAIN}_slideshow")) is not None:
+            mgr.stop(entry.entry_id)
         entry.runtime_data.availability.async_stop()
         await entry.runtime_data.client.disconnect()
     return unloaded

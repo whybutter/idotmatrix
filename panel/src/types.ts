@@ -59,3 +59,10 @@ export interface GalleryItem {
   is_gif: boolean;
   created: string;
 }
+
+export interface Album {
+  id: string;
+  name: string;
+  item_ids: string[];
+  interval: number; // seconds between images
+}

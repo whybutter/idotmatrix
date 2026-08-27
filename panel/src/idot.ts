@@ -1,4 +1,5 @@
 import type {
+  Album,
   GalleryItem,
   Hass,
   HassEntityRegistryEntry,
@@ -167,6 +168,46 @@ export async function gallerySend(
 
 export function dataUrl(item: GalleryItem): string {
   return `data:${item.mime};base64,${item.image_data}`;
+}
+
+/* ---------------- Albums WS API ---------------- */
+
+export async function albumsList(
+  hass: Hass,
+  entityId: string
+): Promise<{ albums: Album[]; playingAlbumId: string | null }> {
+  const res = await hass.callWS<{ albums: Album[]; playing_album_id: string | null }>({
+    type: "idotmatrix/albums/list",
+    entity_id: entityId,
+  });
+  return { albums: res?.albums ?? [], playingAlbumId: res?.playing_album_id ?? null };
+}
+
+export async function albumsSave(
+  hass: Hass,
+  data: { album_id?: string; name: string; item_ids: string[]; interval: number }
+): Promise<Album> {
+  const res = await hass.callWS<{ album: Album }>({
+    type: "idotmatrix/albums/save",
+    ...data,
+  });
+  return res.album;
+}
+
+export async function albumsDelete(hass: Hass, albumId: string): Promise<void> {
+  await hass.callWS({ type: "idotmatrix/albums/delete", album_id: albumId });
+}
+
+export async function albumsPlay(
+  hass: Hass,
+  albumId: string,
+  entityId: string
+): Promise<void> {
+  await hass.callWS({ type: "idotmatrix/albums/play", album_id: albumId, entity_id: entityId });
+}
+
+export async function albumsStop(hass: Hass, entityId: string): Promise<void> {
+  await hass.callWS({ type: "idotmatrix/albums/stop", entity_id: entityId });
 }
 
 export function isLightOn(hass: Hass, entityId: string): boolean {
