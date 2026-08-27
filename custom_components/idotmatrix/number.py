@@ -32,8 +32,7 @@ async def async_setup_entry(
             IdotMatrixScoreNumber(*args, st, 2),
             IdotMatrixCountdownNumber(*args, st, "minutes"),
             IdotMatrixCountdownNumber(*args, st, "seconds"),
-            IdotMatrixMicNumber(*args, st, "sensitivity"),
-            IdotMatrixMicNumber(*args, st, "style"),
+            IdotMatrixMicSensitivityNumber(*args, st),
         ]
     )
 
@@ -135,33 +134,28 @@ class IdotMatrixCountdownNumber(IdotMatrixEntity, NumberEntity):
         self.async_write_ha_state()
 
 
-class IdotMatrixMicNumber(IdotMatrixEntity, NumberEntity):
-    """Mic-rhythm style/sensitivity — stored only; the 'Start mic rhythm' button
-    applies them (button.py)."""
+class IdotMatrixMicSensitivityNumber(IdotMatrixEntity, NumberEntity):
+    """Mic sensitivity 0-100. Changing it re-applies the mic rhythm live at the
+    currently selected style."""
 
+    _attr_name = "Mic sensitivity"
+    _attr_icon = "mdi:microphone"
+    _attr_native_min_value = 0
+    _attr_native_max_value = 100
+    _attr_native_step = 1
     _attr_mode = NumberMode.SLIDER
     _attr_assumed_state = True
 
-    def __init__(self, client, availability, device_name: str, state, field: str) -> None:
-        super().__init__(client, availability, device_name, f"mic_{field}")
+    def __init__(self, client, availability, device_name: str, state) -> None:
+        super().__init__(client, availability, device_name, "mic_sensitivity")
         self._state = state
-        self._field = field
-        if field == "sensitivity":
-            self._attr_name = "Mic sensitivity"
-            self._attr_icon = "mdi:microphone"
-            self._attr_native_min_value = 0
-            self._attr_native_max_value = 100
-            self._attr_native_value = state.mic_sensitivity
-        else:
-            self._attr_name = "Mic style"
-            self._attr_icon = "mdi:animation"
-            self._attr_native_min_value = 0
-            self._attr_native_max_value = 20
-            self._attr_mode = NumberMode.BOX
-            self._attr_native_value = state.mic_style
-        self._attr_native_step = 1
+        self._attr_native_value = state.mic_sensitivity
 
     async def async_set_native_value(self, value: float) -> None:
-        setattr(self._state, f"mic_{self._field}", int(value))
+        self._state.mic_sensitivity = int(value)
+        # Re-apply live so the change is visible immediately.
+        await self._run(
+            self._client.mic_rhythm(self._state.mic_style, self._state.mic_sensitivity)
+        )
         self._attr_native_value = value
         self.async_write_ha_state()

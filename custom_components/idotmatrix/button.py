@@ -54,13 +54,6 @@ async def async_setup_entry(
             lambda cl: cl.countdown(COUNTDOWN_ACTIONS["stop"], 0, 0),
         )
     )
-    # Mic rhythm start (uses stored style/sensitivity)
-    entities.append(
-        IdotMatrixActionButton(
-            c, av, name, "mic_start", "Start mic rhythm", "mdi:microphone",
-            lambda cl: cl.mic_rhythm(st.mic_style, st.mic_sensitivity),
-        )
-    )
     # Send text (renders the Message text entity's stored value)
     entities.append(IdotMatrixSendTextButton(c, av, name, st, hass))
 

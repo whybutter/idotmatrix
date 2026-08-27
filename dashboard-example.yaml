@@ -103,15 +103,10 @@ views:
 
       - type: entities
         entities:
-          - entity: number.PANEL_mic_style
+          - entity: select.PANEL_mic_rhythm
             name: Estilo
           - entity: number.PANEL_mic_sensitivity
             name: Sensibilidad
-      - type: button
-        name: Iniciar ritmo de micrófono
-        icon: mdi:microphone
-        entity: button.PANEL_start_mic_rhythm
-        tap_action: { action: toggle }
 
       - type: heading
         heading: Imagen / GIF

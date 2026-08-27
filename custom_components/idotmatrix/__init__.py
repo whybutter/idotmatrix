@@ -36,7 +36,7 @@ class IdotMatrixState:
     score2: int = 0
     countdown_minutes: int = 0
     countdown_seconds: int = 0
-    mic_style: int = 0
+    mic_style: int = 1  # "Dancing guy"; valid mic styles are 1-4
     mic_sensitivity: int = DEFAULT_MIC_SENSITIVITY
 
 

@@ -95,6 +95,34 @@ MAX_TEXT_LEN = 500
 ATTR_SENSITIVITY = "sensitivity"
 DEFAULT_MIC_SENSITIVITY = 50
 
+# Friendly dropdown labels -> style byte (shown in the UI selects).
+CLOCK_STYLE_LABELS = {
+    "RGB swipe outline": 0,
+    "Christmas tree": 1,
+    "Checkers": 2,
+    "Color": 3,
+    "Hourglass": 4,
+    "Alarm clock": 5,
+    "Outlines": 6,
+    "RGB corners": 7,
+}
+EFFECT_STYLE_LABELS = {
+    "Horizontal rainbow": 0,
+    "Random colored pixels": 1,
+    "Random white pixels": 2,
+    "Vertical rainbow": 3,
+    "Diagonal-right rainbow": 4,
+    "Diagonal-left rainbow": 5,
+    "Random colored pixels (alt)": 6,
+}
+# Mic visualizer styles Marco identified on the panel (1-4). More may exist.
+MIC_STYLE_LABELS = {
+    "Dancing guy": 1,
+    "Heart": 2,
+    "Gummy bear": 3,
+    "Eyes and mouth": 4,
+}
+
 # Chronograph/countdown action label -> mode byte.
 CHRONOGRAPH_ACTIONS = {"reset": 0, "start": 1, "pause": 2, "resume": 3}
 COUNTDOWN_ACTIONS = {"stop": 0, "start": 1, "pause": 2, "restart": 3}
