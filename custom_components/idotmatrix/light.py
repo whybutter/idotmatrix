@@ -123,7 +123,7 @@ async def async_setup_entry(
         {
             # Accept either a named style ("color") or the raw 0-7 int.
             vol.Optional(ATTR_STYLE, default="rgb_swipe_outline"): vol.Any(
-                vol.In(CLOCK_STYLES), vol.All(int, vol.Range(0, 7))
+                vol.In(CLOCK_STYLES), vol.All(vol.Coerce(int), vol.Range(0, 7))
             ),
             vol.Optional(ATTR_SHOW_DATE, default=True): cv.boolean,
             vol.Optional(ATTR_HOUR24, default=True): cv.boolean,
@@ -135,7 +135,7 @@ async def async_setup_entry(
         SERVICE_SHOW_EFFECT,
         {
             vol.Optional(ATTR_STYLE, default="horizontal_rainbow"): vol.Any(
-                vol.In(EFFECT_STYLES), vol.All(int, vol.Range(0, 6))
+                vol.In(EFFECT_STYLES), vol.All(vol.Coerce(int), vol.Range(0, 6))
             ),
             # Colors optional: a sensible RGB palette is used if omitted, so the
             # effect can be fired by just picking a style.

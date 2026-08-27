@@ -122,9 +122,9 @@ class IdotMatrixCard extends HTMLElement {
     section("Modos");
     const modeRow = row();
     this._clockSel = this._dropdown("Reloj", CLOCK_STYLES.map((n, i) => [n, i]), (v) =>
-      this._call("idotmatrix", "show_clock", { style: v }));
+      this._call("idotmatrix", "show_clock", { style: Number(v) }));
     this._effectSel = this._dropdown("Efecto", EFFECT_STYLES.map((n, i) => [n, i]), (v) =>
-      this._call("idotmatrix", "show_effect", { style: v }));
+      this._call("idotmatrix", "show_effect", { style: Number(v) }));
     this._micSel = this._dropdown("Mic", Object.entries(MIC_STYLES), (v) =>
       this._call("idotmatrix", "mic_rhythm", { style: Number(v), sensitivity: 50 }));
     modeRow.appendChild(this._clockSel);
