@@ -1,7 +1,7 @@
 """The iDotMatrix LED panel integration."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, Platform
@@ -9,15 +9,35 @@ from homeassistant.core import HomeAssistant
 
 from .availability import IdotMatrixAvailability
 from .client import IdotMatrixClient
-from .const import CONF_PREFERRED_PROXY, PROXY_AUTO
+from .const import (
+    CONF_PREFERRED_PROXY,
+    DEFAULT_MIC_SENSITIVITY,
+    PROXY_AUTO,
+)
 
 PLATFORMS: list[Platform] = [
     Platform.BUTTON,
     Platform.LIGHT,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
     Platform.SWITCH,
+    Platform.TEXT,
 ]
+
+
+@dataclass
+class IdotMatrixState:
+    """Shared UI state for entities that must remember values and re-send them
+    together (the panel takes whole frames, not deltas)."""
+
+    text_message: str = ""
+    score1: int = 0
+    score2: int = 0
+    countdown_minutes: int = 0
+    countdown_seconds: int = 0
+    mic_style: int = 0
+    mic_sensitivity: int = DEFAULT_MIC_SENSITIVITY
 
 
 @dataclass
@@ -25,6 +45,7 @@ class IdotMatrixData:
     client: IdotMatrixClient
     availability: IdotMatrixAvailability
     device_name: str
+    state: IdotMatrixState = field(default_factory=IdotMatrixState)
 
 
 IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]

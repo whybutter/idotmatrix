@@ -198,13 +198,18 @@ async def async_setup_entry(
 
 
 class IdotMatrixLight(IdotMatrixEntity, LightEntity):
+    """The panel as a light: power + brightness, and setting an RGB color fills
+    the whole panel with that solid color (the fullscreen-color command)."""
+
     _attr_name = None  # takes the device name
-    _attr_color_mode = ColorMode.BRIGHTNESS
-    _attr_supported_color_modes = {ColorMode.BRIGHTNESS}
+    _attr_color_mode = ColorMode.RGB
+    _attr_supported_color_modes = {ColorMode.RGB}
     _attr_assumed_state = True  # panel state can't be read back
 
     def __init__(self, client, availability, device_name: str) -> None:
         super().__init__(client, availability, device_name, "light")
+        self._attr_rgb_color = (255, 255, 255)
+        self._attr_brightness = 255
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         if (ha_brightness := kwargs.get(ATTR_BRIGHTNESS)) is not None:
@@ -214,7 +219,11 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
             )
             await self._run(self._client.set_brightness_pct(pct))
             self._attr_brightness = ha_brightness
-        await self._run(self._client.turn_on())
+        if (rgb := kwargs.get("rgb_color")) is not None:
+            await self._run(self._client.fullscreen_color(*rgb))
+            self._attr_rgb_color = rgb
+        else:
+            await self._run(self._client.turn_on())
         self._attr_is_on = True
         self.async_write_ha_state()
 
