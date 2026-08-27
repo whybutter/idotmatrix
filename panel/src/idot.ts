@@ -2,6 +2,7 @@ import type {
   Album,
   CatalogGroup,
   CatalogItem,
+  CatalogSource,
   GalleryItem,
   Hass,
   HassEntityRegistryEntry,
@@ -214,21 +215,34 @@ export async function albumsStop(hass: Hass, entityId: string): Promise<void> {
 
 /* ---------------- Online catalog (Explorar) ---------------- */
 
-export async function catalogGroups(hass: Hass): Promise<CatalogGroup[]> {
+export async function catalogSources(hass: Hass): Promise<CatalogSource[]> {
+  const res = await hass.callWS<{ sources: CatalogSource[] }>({
+    type: "idotmatrix/catalog/sources",
+  });
+  return res?.sources ?? [];
+}
+
+export async function catalogGroups(
+  hass: Hass,
+  source: string
+): Promise<CatalogGroup[]> {
   const res = await hass.callWS<{ groups: CatalogGroup[] }>({
     type: "idotmatrix/catalog/groups",
+    source,
   });
   return res?.groups ?? [];
 }
 
 export async function catalogList(
   hass: Hass,
+  source: string,
   group: string,
   limit = 60,
   offset = 0
 ): Promise<{ items: CatalogItem[]; total: number }> {
   const res = await hass.callWS<{ items: CatalogItem[]; total: number }>({
     type: "idotmatrix/catalog/list",
+    source,
     group,
     limit,
     offset,
@@ -236,14 +250,17 @@ export async function catalogList(
   return { items: res?.items ?? [], total: res?.total ?? 0 };
 }
 
-/** Same-origin HA-served PNG URL for a catalog hexcode. */
-export function catalogImgUrl(hexcode: string): string {
-  return `/api/idotmatrix/catalog/img/${hexcode}`;
+/** Same-origin HA-served image URL (PNG or GIF) for a catalog item. */
+export function catalogImgUrl(source: string, ref: string): string {
+  return `/api/idotmatrix/catalog/img/${source}/${encodeURIComponent(ref)}`;
 }
 
 /** Fetch a catalog image and return raw base64 (no data-URL prefix). */
-export async function catalogImageBase64(hexcode: string): Promise<string> {
-  const res = await fetch(catalogImgUrl(hexcode));
+export async function catalogImageBase64(
+  source: string,
+  ref: string
+): Promise<string> {
+  const res = await fetch(catalogImgUrl(source, ref));
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const buf = await res.arrayBuffer();
   return arrayBufferToBase64(buf);

@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useHass } from "./hass-context";
 import {
   catalogGroups,
   catalogImageBase64,
   catalogImgUrl,
   catalogList,
+  catalogSources,
   galleryAdd,
 } from "./idot";
-import type { CatalogGroup, CatalogItem, IDotDevice } from "./types";
+import type {
+  CatalogGroup,
+  CatalogItem,
+  CatalogSource,
+  IDotDevice,
+} from "./types";
 import { Modal } from "./Modal";
 import { useBusyAction } from "./useBusyAction";
 import { IconImage, IconSpinner } from "./icons";
@@ -20,12 +26,19 @@ interface Props {
 
 const PAGE = 60;
 
-// Source registry — only OpenMoji today, structured so more can be added later.
-const SOURCES = [{ id: "openmoji", name: "OpenMoji" }];
+// Per-source attribution shown under the grid.
+const ATTRIBUTION: Record<string, string> = {
+  openmoji: "Emojis por OpenMoji (CC BY-SA 4.0)",
+  poke: "Sprites de Pokémon © Nintendo / Game Freak — uso personal",
+};
 
 export function Explore({ device, available, notify }: Props) {
   const hass = useHass();
-  const [source] = useState("openmoji");
+  const hassRef = useRef(hass);
+  hassRef.current = hass;
+
+  const [sources, setSources] = useState<CatalogSource[] | null>(null);
+  const [source, setSource] = useState<string | null>(null);
   const [groups, setGroups] = useState<CatalogGroup[] | null>(null);
   const [group, setGroup] = useState<string | null>(null);
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -34,32 +47,55 @@ export function Explore({ device, available, notify }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<CatalogItem | null>(null);
 
-  // Load groups once.
+  // Load the source list once (ref-guarded so hass churn can't re-run it).
+  const inited = useRef(false);
   useEffect(() => {
+    if (inited.current) return;
+    inited.current = true;
+    catalogSources(hassRef.current)
+      .then((s) => {
+        setSources(s);
+        if (s.length) setSource(s[0].id);
+      })
+      .catch((e) => {
+        setSources([]);
+        setError("No se pudieron cargar las fuentes: " + (e as Error).message);
+      });
+  }, []);
+
+  // Load categories whenever the SOURCE changes (not on hass churn — deps are
+  // [source] only, so switching a category never re-triggers this and never
+  // resets the selection).
+  useEffect(() => {
+    if (!source) return;
     let alive = true;
-    catalogGroups(hass)
+    setGroups(null);
+    setGroup(null);
+    setItems([]);
+    setTotal(0);
+    setError(null);
+    catalogGroups(hassRef.current, source)
       .then((g) => {
         if (!alive) return;
         setGroups(g);
         if (g.length) setGroup(g[0].id);
       })
       .catch((e) => {
-        if (alive) {
-          setGroups([]);
-          setError("No se pudieron cargar las categorías: " + (e as Error).message);
-        }
+        if (!alive) return;
+        setGroups([]);
+        setError("No se pudieron cargar las categorías: " + (e as Error).message);
       });
     return () => {
       alive = false;
     };
-  }, [hass]);
+  }, [source]);
 
   const loadPage = useCallback(
-    async (grp: string, offset: number, replace: boolean) => {
+    async (src: string, grp: string, offset: number, replace: boolean) => {
       setLoading(true);
       setError(null);
       try {
-        const res = await catalogList(hass, grp, PAGE, offset);
+        const res = await catalogList(hassRef.current, src, grp, PAGE, offset);
         setTotal(res.total);
         setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
       } catch (e) {
@@ -68,16 +104,16 @@ export function Explore({ device, available, notify }: Props) {
         setLoading(false);
       }
     },
-    [hass]
+    []
   );
 
-  // Load first page whenever the group changes.
+  // Load the first page whenever the group changes.
   useEffect(() => {
-    if (!group) return;
+    if (!source || !group) return;
     setItems([]);
     setTotal(0);
-    loadPage(group, 0, true);
-  }, [group, loadPage]);
+    loadPage(source, group, 0, true);
+  }, [source, group, loadPage]);
 
   const canLoadMore = items.length < total && !loading;
 
@@ -90,18 +126,20 @@ export function Explore({ device, available, notify }: Props) {
         <div className="idot-section-title">Explorar</div>
       </div>
 
-      {/* Source selector (single source today) */}
-      <div className="idot-source-row">
-        {SOURCES.map((s) => (
-          <button
-            key={s.id}
-            className={"idot-source-btn" + (source === s.id ? " active" : "")}
-            disabled={s.id !== "openmoji"}
-          >
-            {s.name}
-          </button>
-        ))}
-      </div>
+      {/* Source selector */}
+      {sources && sources.length > 1 && (
+        <div className="idot-source-row">
+          {sources.map((s) => (
+            <button
+              key={s.id}
+              className={"idot-source-btn" + (source === s.id ? " active" : "")}
+              onClick={() => setSource(s.id)}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Category chips */}
       {groups === null ? (
@@ -140,12 +178,16 @@ export function Explore({ device, available, notify }: Props) {
           <div className="idot-catalog-grid">
             {items.map((it) => (
               <button
-                key={it.hexcode}
+                key={it.ref}
                 className="idot-catalog-thumb"
                 onClick={() => setActive(it)}
                 title={it.name}
               >
-                <img src={catalogImgUrl(it.hexcode)} alt={it.name} loading="lazy" />
+                <img
+                  src={source ? catalogImgUrl(source, it.ref) : ""}
+                  alt={it.name}
+                  loading="lazy"
+                />
               </button>
             ))}
           </div>
@@ -153,7 +195,9 @@ export function Explore({ device, available, notify }: Props) {
           {canLoadMore && (
             <button
               className="idot-btn-secondary idot-loadmore"
-              onClick={() => group && loadPage(group, items.length, false)}
+              onClick={() =>
+                source && group && loadPage(source, group, items.length, false)
+              }
             >
               Cargar más ({items.length} / {total})
             </button>
@@ -166,10 +210,13 @@ export function Explore({ device, available, notify }: Props) {
         </>
       )}
 
-      <div className="idot-attribution">Emojis por OpenMoji (CC BY-SA 4.0)</div>
+      {source && ATTRIBUTION[source] && (
+        <div className="idot-attribution">{ATTRIBUTION[source]}</div>
+      )}
 
-      {active && (
+      {active && source && (
         <ActionSheet
+          source={source}
           item={active}
           device={device}
           available={available}
@@ -183,12 +230,14 @@ export function Explore({ device, available, notify }: Props) {
 
 /* ---------- Tap action sheet: size + send/save ---------- */
 function ActionSheet({
+  source,
   item,
   device,
   available,
   notify,
   onClose,
 }: {
+  source: string;
   item: CatalogItem;
   device: IDotDevice;
   available: boolean;
@@ -202,24 +251,28 @@ function ActionSheet({
 
   const onSend = () =>
     send.run(async () => {
-      const b64 = await catalogImageBase64(item.hexcode);
-      await hass.callService("idotmatrix", "upload_image", {
-        entity_id: device.lightEntityId,
-        image_data: b64,
-        size,
-      });
+      const b64 = await catalogImageBase64(source, item.ref);
+      await hass.callService(
+        "idotmatrix",
+        item.is_gif ? "upload_gif" : "upload_image",
+        {
+          entity_id: device.lightEntityId,
+          image_data: b64,
+          size,
+        }
+      );
       notify(`Enviado: ${item.name}`);
     });
 
   const onSave = () =>
     save.run(async () => {
-      const b64 = await catalogImageBase64(item.hexcode);
+      const b64 = await catalogImageBase64(source, item.ref);
       await galleryAdd(hass, {
         name: item.name,
         image_data: b64,
         size,
-        is_gif: false,
-        mime: "image/png",
+        is_gif: item.is_gif,
+        mime: item.is_gif ? "image/gif" : "image/png",
       });
       notify("Guardado en la galería");
     });
@@ -229,7 +282,7 @@ function ActionSheet({
   return (
     <Modal title={item.name} onClose={onClose}>
       <div className="idot-sheet-preview">
-        <img src={catalogImgUrl(item.hexcode)} alt={item.name} />
+        <img src={catalogImgUrl(source, item.ref)} alt={item.name} />
       </div>
 
       <div className="idot-field">

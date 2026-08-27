@@ -67,12 +67,18 @@ export interface Album {
   interval: number; // seconds between images
 }
 
+export interface CatalogSource {
+  id: string;
+  name: string;
+}
+
 export interface CatalogGroup {
   id: string;
   name: string;
 }
 
 export interface CatalogItem {
-  hexcode: string;
+  ref: string;
   name: string;
+  is_gif: boolean;
 }
