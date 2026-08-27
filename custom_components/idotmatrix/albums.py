@@ -65,11 +65,13 @@ class AlbumStore:
 
 
 class SlideshowManager:
-    """One running slideshow per device (config entry)."""
+    """Device-side album playback. Instead of an HA timer re-uploading (which
+    flashes), we flash the whole album into the panel's asset memory once and
+    let the DEVICE carousel it (interval baked per-asset). No flash, persists,
+    survives HA disconnects."""
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
-        self._tasks: dict[str, asyncio.Task] = {}
         self._playing: dict[str, str] = {}  # entry_id -> album_id
 
     def is_playing(self, entry_id: str) -> str | None:
@@ -85,55 +87,46 @@ class SlideshowManager:
         return entry.entry_id, entry.runtime_data.client
 
     async def play(self, entity_id: str, album: dict, gallery_items: dict) -> None:
+        from . import protocol
+        from .light import _prepare_gif, _prepare_pixels
+
         entry_id, client = self._client_for(entity_id)
         if client is None:
             raise ValueError("device not found for entity")
-        self.stop(entry_id)
-        interval = max(MIN_INTERVAL, int(album.get("interval", DEFAULT_INTERVAL)))
-        items = [gallery_items[i] for i in album.get("item_ids", []) if i in gallery_items]
+        items = [
+            gallery_items[i] for i in album.get("item_ids", []) if i in gallery_items
+        ]
         if not items:
             raise ValueError("album has no (existing) images")
-        self._playing[entry_id] = album["id"]
-        self._tasks[entry_id] = self._hass.async_create_task(
-            self._loop(client, items, interval, entry_id)
+        time_key = protocol.seconds_to_time_key(
+            int(album.get("interval", DEFAULT_INTERVAL))
         )
+        block_lists: list[list[bytes]] = []
+        for item in items:
+            raw = base64.b64decode(item["image_data"])
+            size = int(item.get("size", 32))
+            if item.get("is_gif"):
+                gif = await self._hass.async_add_executor_job(_prepare_gif, raw, size)
+                block_lists.append(protocol.build_gif_upload(gif, 0xFF, time_key))
+            else:
+                pixels = await self._hass.async_add_executor_job(
+                    _prepare_pixels, raw, size
+                )
+                block_lists.append(protocol.build_asset_upload(pixels, time_key))
+        await client.save_album(block_lists)
+        self._playing[entry_id] = album["id"]
 
-    async def _loop(self, client, items, interval, entry_id) -> None:
-        from .light import _prepare_gif, _prepare_pixels
+    async def stop(self, entity_id: str) -> None:
+        entry_id, client = self._client_for(entity_id)
+        if client is not None:
+            await client.clear_album()
+        if entry_id:
+            self._playing.pop(entry_id, None)
 
-        idx = 0
-        try:
-            while True:
-                item = items[idx % len(items)]
-                idx += 1
-                try:
-                    raw = base64.b64decode(item["image_data"])
-                    size = int(item.get("size", 32))
-                    if item.get("is_gif"):
-                        data = await self._hass.async_add_executor_job(
-                            _prepare_gif, raw, size
-                        )
-                        await client.upload_gif(data)
-                    else:
-                        data = await self._hass.async_add_executor_job(
-                            _prepare_pixels, raw, size
-                        )
-                        await client.upload_image(data)
-                except Exception as err:  # noqa: BLE001 - keep the slideshow alive
-                    _LOGGER.warning("Slideshow frame failed: %s", err)
-                await asyncio.sleep(interval)
-        except asyncio.CancelledError:
-            pass
-
-    def stop(self, entry_id: str) -> None:
-        task = self._tasks.pop(entry_id, None)
-        if task:
-            task.cancel()
+    def clear_state(self, entry_id: str) -> None:
+        """Drop tracking without touching the device (used on unload — the
+        device keeps its stored album on purpose)."""
         self._playing.pop(entry_id, None)
-
-    def stop_all(self) -> None:
-        for entry_id in list(self._tasks):
-            self.stop(entry_id)
 
 
 @callback
@@ -218,9 +211,11 @@ def async_register(hass: HomeAssistant) -> None:
     )
     @websocket_api.async_response
     async def ws_stop(hass, connection, msg):
-        ent = er.async_get(hass).async_get(msg["entity_id"])
-        if ent and ent.config_entry_id:
-            manager.stop(ent.config_entry_id)
+        try:
+            await manager.stop(msg["entity_id"])
+        except (ValueError, Exception) as err:  # noqa: BLE001
+            connection.send_error(msg["id"], "cannot_stop", str(err))
+            return
         connection.send_result(msg["id"], {"success": True})
 
     for cmd in (ws_list, ws_save, ws_delete, ws_play, ws_stop):

@@ -12,6 +12,7 @@ from .commands import (
     chronograph,
     clock,
     countdown,
+    delete_all_assets,
     diy_mode,
     eco,
     effect,
@@ -23,18 +24,22 @@ from .commands import (
     scoreboard,
     screen_on_time,
     screen_power,
+    seconds_to_time_key,
     set_time,
     speed,
 )
 from .gif import build_gif_upload
-from .image import build_image_upload
+from .image import build_asset_upload, build_image_upload
 from .text import SEPARATOR as TEXT_SEPARATOR, build_text_packet
 
 __all__ = [
     "TEXT_SEPARATOR",
     "brightness",
+    "build_asset_upload",
     "build_gif_upload",
     "build_image_upload",
+    "delete_all_assets",
+    "seconds_to_time_key",
     "build_text_packet",
     "chronograph",
     "clock",

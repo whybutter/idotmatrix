@@ -29,13 +29,23 @@ HEADER_SIZE = 16
 GIF_TYPE_NO_TIME_SIGNATURE = 12
 
 
-def build_gif_upload(gif_bytes: bytes, gif_type: int = GIF_TYPE_NO_TIME_SIGNATURE) -> list[bytes]:
+def build_gif_upload(
+    gif_bytes: bytes,
+    gif_type: int = GIF_TYPE_NO_TIME_SIGNATURE,
+    time_key: int = 12,
+) -> list[bytes]:
+    """Build GIF upload blocks. For a persistent carousel asset, pass
+    gif_type=0xFF and a time_key (interval); default keeps the transient
+    single-GIF behavior (type 12, no time-sign)."""
     if not gif_bytes:
         raise ValueError("gif_bytes cannot be empty")
+
+    from .commands import convert_time
 
     total_len = len(gif_bytes)
     # java.util.zip.CRC32 == standard CRC-32 == binascii.crc32 (unsigned).
     crc = binascii.crc32(gif_bytes) & 0xFFFFFFFF
+    time_sign = 0 if time_key == 12 else convert_time(time_key)
 
     chunks = [
         gif_bytes[i : i + PROTOCOL_CHUNK_SIZE]
@@ -51,8 +61,7 @@ def build_gif_upload(gif_bytes: bytes, gif_type: int = GIF_TYPE_NO_TIME_SIGNATUR
         header[4] = 2 if i > 0 else 0
         header[5:9] = total_len.to_bytes(4, "little")
         header[9:13] = crc.to_bytes(4, "little")
-        header[13] = 0
-        header[14] = 0
+        header[13:15] = time_sign.to_bytes(2, "big")
         header[15] = gif_type & 0xFF
         packets.append(bytes(header) + chunk)
     return packets

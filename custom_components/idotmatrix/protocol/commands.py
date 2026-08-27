@@ -166,6 +166,39 @@ def screen_on_time(value: int) -> bytes:
     return bytes([0x05, 0x00, 0x0F, 0x80, value])
 
 
+def delete_all_assets() -> bytes:
+    """Wipe the panel's stored asset album. The on-device album is write-only
+    (no per-slot delete), so replacing it = delete-all then re-flash in order.
+    Confirmed byte-exact from the app (Agreement.deleteDeviceMaterial)."""
+    return bytes(
+        [0x11, 0x00, 0x02, 0x01, 0x0C, 0x00, 0x01, 0x02, 0x03, 0x04,
+         0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B]
+    )
+
+
+# Carousel interval: the device's ConvertTime maps a key to seconds. Only these
+# intervals are representable; the panel auto-rotates stored assets at this rate.
+_INTERVAL_KEY_SECONDS = {1: 10, 2: 30, 3: 60, 4: 300}
+
+
+def convert_time(key: int) -> int:
+    """seconds for a time-sign key (1->10,2->30,3->60,4->300, else->5; 12->none)."""
+    return _INTERVAL_KEY_SECONDS.get(key, 5)
+
+
+def seconds_to_time_key(seconds: int) -> int:
+    """Nearest device-supported interval key for a desired seconds value."""
+    if seconds <= 7:
+        return 0  # -> 5s (any non-1..4 key)
+    if seconds <= 20:
+        return 1  # 10s
+    if seconds <= 45:
+        return 2  # 30s
+    if seconds <= 150:
+        return 3  # 60s
+    return 4  # 300s
+
+
 def mic_rhythm(style: int, sensitivity: int) -> bytes:
     """On-device microphone reactive visualizer (BleProtocolN.sendMicCommand1).
     One frame carries both the style (mode index) and sensitivity (0-100);

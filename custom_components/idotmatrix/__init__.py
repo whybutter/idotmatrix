@@ -138,7 +138,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) 
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         if (mgr := hass.data.get(f"{DOMAIN}_slideshow")) is not None:
-            mgr.stop(entry.entry_id)
+            mgr.clear_state(entry.entry_id)
         entry.runtime_data.availability.async_stop()
         await entry.runtime_data.client.disconnect()
     return unloaded

@@ -198,6 +198,44 @@ class IdotMatrixClient:
         blocks = protocol.build_gif_upload(gif_bytes)
         await self._send_bulk(blocks, enter_diy=False, label="GIF")
 
+    async def save_album(self, block_lists: list[list[bytes]]) -> None:
+        """Write a persistent on-device asset album: wipe, then flash each
+        image's asset blocks in order. The device then carousels them itself
+        (interval baked into each asset header) — no flash, survives HA
+        disconnects. block_lists come from protocol.build_asset_upload /
+        build_gif_upload (asset variant). No DIY-mode enable on this path."""
+        async with self._lock:
+            self._cancel_idle_timer()
+            try:
+                client = await self._ensure_connected()
+                sub = self._image_subchunk_size(client)
+                await self._write_paced(client, protocol.delete_all_assets(), sub)
+                await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+                while not self._notifications.empty():
+                    self._notifications.get_nowait()
+                for n, blocks in enumerate(block_lists, 1):
+                    for block in blocks:
+                        await self._write_block(client, block, sub)
+                        await self._wait_for_block_ack()
+                    _LOGGER.debug("Album asset %d/%d written", n, len(block_lists))
+            except (BleakError, TimeoutError) as err:
+                raise IdotMatrixError(
+                    f"Album save to {self._address} failed: {err}"
+                ) from err
+            finally:
+                self._schedule_idle_disconnect()
+
+    async def clear_album(self) -> None:
+        """Wipe the device asset album (stops the carousel)."""
+        await self._write(protocol.delete_all_assets())
+
+    async def _write_paced(self, client, data: bytes, sub: int) -> None:
+        for i in range(0, len(data), sub):
+            await client.write_gatt_char(
+                WRITE_CHAR_UUID, data[i : i + sub], response=False
+            )
+            await asyncio.sleep(BULK_WRITE_PACE_SECONDS)
+
     async def send_text(
         self,
         bitmaps: bytes,
