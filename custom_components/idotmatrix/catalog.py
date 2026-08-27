@@ -231,14 +231,20 @@ class HeatonSource(CatalogSource):
     API_URL = "https://manage.heaton.com.cn/api/rm/getMaterialUnderCategory"
     APP_KEY = "Jy47rzJAgKMfrcc92PamyyukQqB7wmFu"
     IV = b"0000000000000000"
-    # (group id, label, category_name, type, is_gif). Images ignore the tab
-    # (always "iPixels"); animations encode the tab as "<tab>_IDM".
+    # (group id, label, category_name, type, is_gif). Both images and animations
+    # are categorised by tab as "<tab>_IDM"; the key is label="ALL" (label
+    # "Product_" only returns the flat generic bucket). 5 tabs × {image, gif}.
     GROUPS = [
-        ("img", "Imágenes", "iPixels", "图片", False),
+        ("img_daily", "Imágenes · Diario", "日常_IDM", "图片", False),
+        ("img_holiday", "Imágenes · Festivos", "节日_IDM", "图片", False),
+        ("img_emoji", "Imágenes · Emojis", "表情_IDM", "图片", False),
+        ("img_creative", "Imágenes · Creativo", "创意_IDM", "图片", False),
+        ("img_business", "Imágenes · Negocios", "商业_IDM", "图片", False),
         ("ani_daily", "Animados · Diario", "日常_IDM", "动画", True),
         ("ani_holiday", "Animados · Festivos", "节日_IDM", "动画", True),
         ("ani_emoji", "Animados · Emojis", "表情_IDM", "动画", True),
         ("ani_creative", "Animados · Creativo", "创意_IDM", "动画", True),
+        ("ani_business", "Animados · Negocios", "商业_IDM", "动画", True),
     ]
     # The catalog is authored per asset-size; 32×32 has the richest set. We list
     # at 32 and resize on send to whatever size the user picks.
@@ -319,8 +325,8 @@ class HeatonSource(CatalogSource):
             "type": mtype,
             "width": str(self.LIST_SIZE),
             "height": str(self.LIST_SIZE),
-            "label": "Product_",
-            "filter_tags": "IDM_",
+            "label": "ALL",
+            "filter_tags": "ALL",
             "file_lang": "none,cn",
         }
         rnd = "".join(_random.choices(string.ascii_letters + string.digits, k=8))
