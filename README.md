@@ -35,9 +35,17 @@ One device with a proper entity model (no state can be read back from the
 panel, so writable entities are marked `assumed_state`):
 
 - **Light** — on/off + brightness (5-100% on the device, mapped to HA's
-  0-255 range). Carries the `idotmatrix.upload_image` entity service: any
-  image Pillow can read is converted to RGB, resized to the panel size
-  (16/32/64) and uploaded.
+  0-255 range). Carries the entity services below.
+  - `idotmatrix.upload_image` — any image Pillow can read, resized to the
+    panel size (16/32/64) and uploaded.
+  - `idotmatrix.fullscreen_color` — fill the panel with one solid RGB color.
+  - `idotmatrix.show_clock` — on-device clock (8 styles, date on/off, 12/24h,
+    color).
+  - `idotmatrix.show_effect` — built-in animated background (7 styles, 2-7
+    color palette).
+  - `idotmatrix.chronograph` — stopwatch (reset/start/pause/resume).
+  - `idotmatrix.countdown` — timer (start/stop/pause/restart, mm:ss).
+  - `idotmatrix.scoreboard` — two counters (0-999 each).
 - **Switch: Flip display** — 180° rotation (explicit on/off command).
 - **Button: Reset** — general "fix the panel" command. Wipes content back to
   the default animations.

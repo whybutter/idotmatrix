@@ -77,6 +77,28 @@ class IdotMatrixClient:
     async def reset(self) -> None:
         await self._write(protocol.reset())
 
+    # -- native display modes --
+
+    async def fullscreen_color(self, r: int, g: int, b: int) -> None:
+        await self._write(protocol.fullscreen_color(r, g, b))
+
+    async def show_clock(
+        self, style: int, show_date: bool, hour24: bool, r: int, g: int, b: int
+    ) -> None:
+        await self._write(protocol.clock(style, show_date, hour24, r, g, b))
+
+    async def show_effect(self, style: int, colors: list[tuple[int, int, int]]) -> None:
+        await self._write(protocol.effect(style, colors))
+
+    async def chronograph(self, mode: int) -> None:
+        await self._write(protocol.chronograph(mode))
+
+    async def countdown(self, mode: int, minutes: int, seconds: int) -> None:
+        await self._write(protocol.countdown(mode, minutes, seconds))
+
+    async def scoreboard(self, count1: int, count2: int) -> None:
+        await self._write(protocol.scoreboard(count1, count2))
+
     async def upload_image(self, pixel_bytes: bytes) -> None:
         """Upload a still image.
 
