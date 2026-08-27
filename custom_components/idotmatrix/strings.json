@@ -17,5 +17,16 @@
       "no_devices_found": "No IDM-* panels found nearby. Confirm the panel is powered and in range of an active Bluetooth proxy.",
       "already_configured": "This panel is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "iDotMatrix options",
+        "description": "Home Assistant normally connects through the proxy with the strongest signal, but the strongest one can be unreliable. Pin a specific proxy if needed.",
+        "data": {
+          "preferred_proxy": "Preferred BLE proxy"
+        }
+      }
+    }
   }
 }

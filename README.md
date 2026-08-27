@@ -80,8 +80,15 @@ no adapter/proxy has seen it recently.
   connection slots.
 - `availability.py` — advertisement-based availability via HA bluetooth
   callbacks.
-- Thin entity platforms (`light`, `switch`, `button`, `number`) over a shared
-  base entity.
+- Thin entity platforms (`light`, `switch`, `button`, `number`, `sensor`) over
+  a shared base entity.
+
+## Preferred proxy
+
+HA connects through the BLE proxy with the strongest signal, but the strongest
+proxy isn't always the most reliable (some firmware handles connectable BLE
+poorly). The integration's options (Settings → Devices & Services → iDotMatrix
+→ Configure) let you pin a specific proxy for this panel instead of auto.
 
 ## Protocol notes
 

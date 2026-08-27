@@ -54,9 +54,14 @@ class IdotMatrixError(Exception):
 
 
 class IdotMatrixClient:
-    def __init__(self, hass: HomeAssistant, address: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, address: str, preferred_source: str | None = None
+    ) -> None:
         self._hass = hass
         self._address = address
+        # Adapter/proxy MAC to force connections through, or None for auto
+        # (HA picks the best signal). See the preferred-proxy option.
+        self._preferred_source = preferred_source
         self._client: BleakClientWithServiceCache | None = None
         self._lock = asyncio.Lock()
         self._idle_handle: asyncio.TimerHandle | None = None
@@ -239,6 +244,29 @@ class IdotMatrixClient:
             finally:
                 self._schedule_idle_disconnect()
 
+    def _select_ble_device(self):
+        """Pick the BLEDevice to connect through.
+
+        With a preferred proxy configured, use that specific scanner's device
+        (bypassing HA's signal-based pick — useful when the strongest proxy is
+        unreliable). Falls back to auto if the preferred proxy isn't currently
+        seeing the panel.
+        """
+        if self._preferred_source:
+            for dev in bluetooth.async_scanner_devices_by_address(
+                self._hass, self._address, connectable=True
+            ):
+                if dev.scanner.source == self._preferred_source:
+                    return dev.ble_device
+            _LOGGER.debug(
+                "Preferred proxy %s doesn't see %s right now; using best available",
+                self._preferred_source,
+                self._address,
+            )
+        return bluetooth.async_ble_device_from_address(
+            self._hass, self._address, connectable=True
+        )
+
     @staticmethod
     def _image_subchunk_size(client: BleakClientWithServiceCache) -> int:
         mtu = getattr(client, "mtu_size", 0) or 0
@@ -291,9 +319,7 @@ class IdotMatrixClient:
         if self._client is not None and self._client.is_connected:
             return self._client
 
-        ble_device = bluetooth.async_ble_device_from_address(
-            self._hass, self._address, connectable=True
-        )
+        ble_device = self._select_ble_device()
         if ble_device is None:
             raise IdotMatrixError(
                 f"No BLE proxy currently sees {self._address} — check the panel is "

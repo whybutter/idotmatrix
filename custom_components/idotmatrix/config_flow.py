@@ -8,17 +8,28 @@ import voluptuous as vol
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
+    async_scanner_devices_by_address,
 )
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_ADDRESS
+from homeassistant.core import callback
 
-from .const import DOMAIN, LOCAL_NAME_PREFIX
+from .const import CONF_PREFERRED_PROXY, DOMAIN, LOCAL_NAME_PREFIX, PROXY_AUTO
 
 
 class IdotMatrixConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle discovery + manual setup of an iDotMatrix panel."""
 
     VERSION = 1
+
+    @staticmethod
+    @callback
+    def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        return IdotMatrixOptionsFlow()
 
     def __init__(self) -> None:
         self._discovered_address: str | None = None
@@ -73,5 +84,38 @@ class IdotMatrixConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {vol.Required(CONF_ADDRESS): vol.In(self._discovered_devices)}
+            ),
+        )
+
+
+class IdotMatrixOptionsFlow(OptionsFlow):
+    """Let the user force a specific BLE proxy for this panel.
+
+    HA normally picks the proxy with the strongest signal, but the strongest
+    one can be unreliable. This lists the proxies currently seeing the panel so
+    a specific (more stable) one can be pinned.
+    """
+
+    async def async_step_init(self, user_input: dict | None = None):
+        if user_input is not None:
+            return self.async_create_entry(title="", data=user_input)
+
+        address = self.config_entry.data[CONF_ADDRESS]
+        options: dict[str, str] = {PROXY_AUTO: "Auto (best signal)"}
+        for dev in async_scanner_devices_by_address(self.hass, address, connectable=True):
+            rssi = getattr(dev.advertisement, "rssi", None)
+            label = dev.scanner.name or dev.scanner.source
+            options[dev.scanner.source] = (
+                f"{label} (RSSI {rssi})" if rssi is not None else label
+            )
+
+        current = self.config_entry.options.get(CONF_PREFERRED_PROXY, PROXY_AUTO)
+        if current not in options:
+            options[current] = current
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=vol.Schema(
+                {vol.Required(CONF_PREFERRED_PROXY, default=current): vol.In(options)}
             ),
         )

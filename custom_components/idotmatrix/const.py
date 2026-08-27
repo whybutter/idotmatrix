@@ -3,6 +3,10 @@ from __future__ import annotations
 
 DOMAIN = "idotmatrix"
 
+CONF_PREFERRED_PROXY = "preferred_proxy"
+# Sentinel option value meaning "let HA pick the best proxy by signal".
+PROXY_AUTO = "auto"
+
 # BLE identifiers, from the community reverse engineering of the official app
 # (derkalle4/python3-idotmatrix-library and its maintained forks).
 LOCAL_NAME_PREFIX = "IDM-"

@@ -9,6 +9,7 @@ from homeassistant.core import HomeAssistant
 
 from .availability import IdotMatrixAvailability
 from .client import IdotMatrixClient
+from .const import CONF_PREFERRED_PROXY, PROXY_AUTO
 
 PLATFORMS: list[Platform] = [
     Platform.BUTTON,
@@ -31,13 +32,22 @@ IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
 
 async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -> bool:
     address: str = entry.data[CONF_ADDRESS]
+    preferred = entry.options.get(CONF_PREFERRED_PROXY, PROXY_AUTO)
+    preferred_source = None if preferred == PROXY_AUTO else preferred
     entry.runtime_data = IdotMatrixData(
-        client=IdotMatrixClient(hass, address),
+        client=IdotMatrixClient(hass, address, preferred_source=preferred_source),
         availability=IdotMatrixAvailability(hass, address),
         device_name=entry.title,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
     return True
+
+
+async def _async_reload_on_options(
+    hass: HomeAssistant, entry: IdotMatrixConfigEntry
+) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -> bool:
