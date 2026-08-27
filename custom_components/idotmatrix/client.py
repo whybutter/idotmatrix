@@ -35,10 +35,12 @@ from .const import (
     WRITE_CHAR_UUID,
 )
 
-# Fallback BLE sub-chunk size for image data when the negotiated MTU can't be
-# read. Matches the official app / maintained fork (509 bytes when a large MTU
-# is negotiated).
-IMAGE_SUBCHUNK_FALLBACK = 509
+# BLE sub-chunk size for bulk (image/GIF) writes. The official app uses ~514
+# (full MTU) because it connects DIRECTLY, but over an ESPHome-style proxy (the
+# WBRG1 gateway) a large write-without-response can be silently dropped while
+# still reporting success. A small, conservative chunk is far more reliable
+# through the proxy, at the cost of more (paced) writes.
+IMAGE_SUBCHUNK_MAX = 180
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -213,7 +215,8 @@ class IdotMatrixClient:
     @staticmethod
     def _image_subchunk_size(client: BleakClientWithServiceCache) -> int:
         mtu = getattr(client, "mtu_size", 0) or 0
-        return (mtu - 3) if mtu > 3 else IMAGE_SUBCHUNK_FALLBACK
+        usable = (mtu - 3) if mtu > 3 else IMAGE_SUBCHUNK_MAX
+        return min(usable, IMAGE_SUBCHUNK_MAX)
 
     async def _write_block(
         self, client: BleakClientWithServiceCache, block: bytes, sub: int
