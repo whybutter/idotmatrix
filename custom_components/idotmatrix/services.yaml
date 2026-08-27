@@ -81,13 +81,13 @@ send_text:
             - filling
     speed:
       name: Speed
-      description: 0-255 (higher is faster).
+      description: 0-100 (higher is faster).
       required: false
       default: 95
       selector:
         number:
           min: 0
-          max: 255
+          max: 100
           mode: slider
     color_mode:
       name: Color mode

@@ -101,7 +101,7 @@ async def async_setup_entry(
                 vol.In(TEXT_MODES), vol.All(int, vol.Range(0, 8))
             ),
             vol.Optional(ATTR_SPEED, default=DEFAULT_TEXT_SPEED): vol.All(
-                int, vol.Range(0, 255)
+                int, vol.Range(0, 100)
             ),
             vol.Optional(ATTR_COLOR_MODE, default="white"): vol.Any(
                 vol.In(TEXT_COLOR_MODES), vol.All(int, vol.Range(0, 5))
