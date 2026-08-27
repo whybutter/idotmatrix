@@ -26,7 +26,17 @@ from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant, callback
 
 from . import protocol
-from .const import COMMAND_SETTLE_SECONDS, IDLE_DISCONNECT_SECONDS, WRITE_CHAR_UUID
+from .const import (
+    COMMAND_SETTLE_SECONDS,
+    IDLE_DISCONNECT_SECONDS,
+    READ_CHAR_UUID,
+    WRITE_CHAR_UUID,
+)
+
+# Fallback BLE sub-chunk size for image data when the negotiated MTU can't be
+# read. Matches the official app / maintained fork (509 bytes when a large MTU
+# is negotiated).
+IMAGE_SUBCHUNK_FALLBACK = 509
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -61,20 +71,66 @@ class IdotMatrixClient:
     async def set_flip(self, flipped: bool) -> None:
         await self._write(protocol.flip(flipped))
 
-    async def toggle_freeze(self) -> None:
-        await self._write(protocol.toggle_freeze())
-
     async def set_speed(self, value: int) -> None:
         await self._write(protocol.speed(value))
 
     async def reset(self) -> None:
-        await self._write(*protocol.reset_sequence())
+        await self._write(protocol.reset())
 
-    async def upload_image(self, rgb_bytes: bytes) -> None:
-        # DIY mode must be active for the panel to accept pixel data.
-        await self._write(
-            protocol.diy_mode(True), *protocol.build_image_upload(rgb_bytes)
-        )
+    async def upload_image(self, pixel_bytes: bytes) -> None:
+        """Upload a still image.
+
+        `pixel_bytes` must already be in the panel's native G,R,B order
+        (see light._prepare_pixels). The DIY image path is different from the
+        short commands: it needs write-with-response, per-4K-block framing, and
+        an ack round-trip on the notify characteristic after each block (the
+        panel signals it's ready for the next block). Sending it blind — or
+        without response — leaves the panel black.
+        """
+        blocks = protocol.build_image_upload(pixel_bytes)
+        async with self._lock:
+            self._cancel_idle_timer()
+            try:
+                client = await self._ensure_connected()
+                # Enter DIY draw mode (short command, with response).
+                await client.write_gatt_char(
+                    WRITE_CHAR_UUID, protocol.diy_mode(True), response=True
+                )
+                await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+                sub = self._image_subchunk_size(client)
+                for block in blocks:
+                    await self._write_block(client, block, sub)
+            except (BleakError, TimeoutError) as err:
+                raise IdotMatrixError(
+                    f"Image upload to {self._address} failed: {err}"
+                ) from err
+            finally:
+                self._schedule_idle_disconnect()
+
+    @staticmethod
+    def _image_subchunk_size(client: BleakClientWithServiceCache) -> int:
+        mtu = getattr(client, "mtu_size", 0) or 0
+        return (mtu - 3) if mtu > 3 else IMAGE_SUBCHUNK_FALLBACK
+
+    async def _write_block(
+        self, client: BleakClientWithServiceCache, block: bytes, sub: int
+    ) -> None:
+        """Write one 4K DIY block, split into BLE sub-writes.
+
+        All sub-writes are write-without-response except the last, which is
+        write-with-response; then we read the notify characteristic once. That
+        read is the block-level ack round-trip the panel needs before the next
+        block (mirrors the maintained fork, which is known to work on real
+        hardware). Best-effort: some stacks refuse the read, which is fine.
+        """
+        for i in range(0, len(block), sub):
+            piece = block[i : i + sub]
+            is_last = i + sub >= len(block)
+            await client.write_gatt_char(WRITE_CHAR_UUID, piece, response=is_last)
+        try:
+            await client.read_gatt_char(READ_CHAR_UUID)
+        except (BleakError, TimeoutError) as err:
+            _LOGGER.debug("Image block ack read skipped: %s", err)
 
     # -- connection plumbing --
 

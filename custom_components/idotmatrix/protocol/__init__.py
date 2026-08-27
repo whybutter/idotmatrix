@@ -11,11 +11,10 @@ from .commands import (
     brightness,
     diy_mode,
     flip,
-    reset_sequence,
+    reset,
     screen_power,
     set_time,
     speed,
-    toggle_freeze,
 )
 from .image import build_image_upload
 
@@ -24,9 +23,8 @@ __all__ = [
     "build_image_upload",
     "diy_mode",
     "flip",
-    "reset_sequence",
+    "reset",
     "screen_power",
     "set_time",
     "speed",
-    "toggle_freeze",
 ]

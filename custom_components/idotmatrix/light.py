@@ -79,15 +79,21 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
                 f"{file_path} is not in an allowed directory; add it to "
                 "homeassistant.allowlist_external_dirs"
             )
-        rgb_bytes = await self.hass.async_add_executor_job(
-            _prepare_rgb, file_path, size
+        pixel_bytes = await self.hass.async_add_executor_job(
+            _prepare_pixels, file_path, size
         )
-        await self._run(self._client.upload_image(rgb_bytes))
+        await self._run(self._client.upload_image(pixel_bytes))
 
 
-def _prepare_rgb(file_path: str, size: int) -> bytes:
-    """Normalize any input image to raw size*size RGB bytes (blocking; run in
-    executor). The panel's DIY upload wants raw pixel data, not an encoded file."""
+def _prepare_pixels(file_path: str, size: int) -> bytes:
+    """Normalize any input image to the panel's raw pixel bytes (blocking; run
+    in executor).
+
+    The panel's DIY upload wants raw pixel data in G,R,B order (not R,G,B, and
+    not an encoded file) — confirmed by disassembling the official app's
+    LedView.getColorData, which stores green, then red, then blue per pixel.
+    Sending R,G,B leaves the panel blank/wrong.
+    """
     from PIL import Image, ImageOps
 
     with Image.open(file_path) as img:
@@ -95,4 +101,5 @@ def _prepare_rgb(file_path: str, size: int) -> bytes:
         img = img.convert("RGB")
         if img.size != (size, size):
             img = img.resize((size, size), Image.LANCZOS)
-        return img.tobytes()
+        r, g, b = img.split()
+        return Image.merge("RGB", (g, r, b)).tobytes()

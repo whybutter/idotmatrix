@@ -39,9 +39,8 @@ panel, so writable entities are marked `assumed_state`):
   image Pillow can read is converted to RGB, resized to the panel size
   (16/32/64) and uploaded.
 - **Switch: Flip display** — 180° rotation (explicit on/off command).
-- **Button: Toggle freeze** — a button, not a switch, because the panel only
-  exposes a toggle and its state can't be read.
-- **Button: Reset** — general "fix the panel" sequence.
+- **Button: Reset** — general "fix the panel" command. Wipes content back to
+  the default animations.
 - **Number: Animation speed** — disabled by default; the command isn't
   referenced by the official app and likely only affects animated modes.
 
@@ -63,18 +62,34 @@ no adapter/proxy has seen it recently.
 - Thin entity platforms (`light`, `switch`, `button`, `number`) over a shared
   base entity.
 
+## Protocol notes
+
+The command bytes were cross-checked against the community repos *and* a
+disassembly of the official app (`com.tech.idotmatrix`). Two things that
+differ from the community reverse-engineering and matter here:
+
+- **There is no freeze command.** The app has no freeze/unfreeze feature; the
+  community `04 00 03 00` frame freezes but the firmware never unfreezes from
+  it. To hold a static display, upload an image.
+- **Image pixels are G,R,B, not R,G,B**, sent as raw pixel bytes (not an
+  encoded PNG) after enabling DIY mode, written with-response with a
+  per-block ack. Sending R,G,B or write-without-response leaves the panel
+  blank.
+
 ## Validated against real hardware
 
-on/off, brightness, flip (2026-08-26, via a WBRG1 active proxy). Still
-untested: freeze timing fix, reset, speed, image upload.
+on/off, brightness, flip (2026-08-26, via a WBRG1 active proxy). Image upload
+reworked from the app disassembly (G,R,B + write-with-response) pending
+re-test.
 
 ## Out of scope (for now)
 
-Text rendering, GIFs, clock/chronograph/scoreboard modes — the maintained
-fork has these reverse-engineered if we want them later.
+Text rendering, GIFs, clock/chronograph/scoreboard modes — reverse-engineered
+in the community repos / app if we want them later.
 
 ## Credits
 
 Protocol reverse-engineered by the `derkalle4/python3-idotmatrix-library`
-community (archived 2026-06-05) and continued in
-`Toon-nooT/idotmatrix-api-client` / `markusressel/python3-idotmatrix-library`.
+community (archived 2026-06-05), continued in
+`Toon-nooT/idotmatrix-api-client` / `markusressel/python3-idotmatrix-library`
+and `8none1/idotmatrix`, plus a disassembly of the official app.

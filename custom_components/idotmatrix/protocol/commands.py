@@ -26,11 +26,6 @@ def flip(flipped: bool) -> bytes:
     return bytes([0x05, 0x00, 0x06, 0x80, 0x01 if flipped else 0x00])
 
 
-def toggle_freeze() -> bytes:
-    """Single fixed toggle command — the panel keeps the state, we can't read it."""
-    return bytes([0x04, 0x00, 0x03, 0x00])
-
-
 def speed(value: int) -> bytes:
     """Animation/scroll speed. Not referenced by the official app per the
     maintained fork; likely only affects animated modes (text/clock/effects)."""
@@ -64,11 +59,10 @@ def set_time(dt: datetime) -> bytes:
     )
 
 
-def reset_sequence() -> tuple[bytes, ...]:
+def reset() -> bytes:
     """General 'fix the panel' reset.
 
-    The maintained fork sends only the first frame (credited to 8none1); the
-    original archived library followed it with a brightness reset to 80%. We
-    keep both — a fixed brightness afterwards is deterministic and harmless.
+    Confirmed by disassembling the official app (BleProtocolN.restDevice): a
+    single frame, no brightness follow-up. Wipes content back to defaults.
     """
-    return (bytes([0x04, 0x00, 0x03, 0x80]), brightness(80))
+    return bytes([0x04, 0x00, 0x03, 0x80])
