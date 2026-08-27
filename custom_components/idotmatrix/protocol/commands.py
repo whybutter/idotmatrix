@@ -39,6 +39,13 @@ def speed(value: int) -> bytes:
     return bytes([0x05, 0x00, 0x03, 0x01, value])
 
 
+def diy_mode(enable: bool) -> bytes:
+    """Enter/exit DIY draw mode. Must be enabled before uploading pixel data
+    (from the app decompile via the maintained fork: modes 2/3 exist but are
+    unknown)."""
+    return bytes([0x05, 0x00, 0x04, 0x01, 0x01 if enable else 0x00])
+
+
 def set_time(dt: datetime) -> bytes:
     return bytes(
         [

@@ -1,7 +1,6 @@
 """Panel power + brightness as a light entity, plus the upload_image service."""
 from __future__ import annotations
 
-import io
 from typing import Any
 
 import voluptuous as vol
@@ -80,20 +79,20 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
                 f"{file_path} is not in an allowed directory; add it to "
                 "homeassistant.allowlist_external_dirs"
             )
-        png_bytes = await self.hass.async_add_executor_job(
-            _prepare_png, file_path, size
+        rgb_bytes = await self.hass.async_add_executor_job(
+            _prepare_rgb, file_path, size
         )
-        await self._run(self._client.upload_image(png_bytes))
+        await self._run(self._client.upload_image(rgb_bytes))
 
 
-def _prepare_png(file_path: str, size: int) -> bytes:
-    """Normalize any input image to an exact-size RGB PNG (blocking; run in executor)."""
-    from PIL import Image
+def _prepare_rgb(file_path: str, size: int) -> bytes:
+    """Normalize any input image to raw size*size RGB bytes (blocking; run in
+    executor). The panel's DIY upload wants raw pixel data, not an encoded file."""
+    from PIL import Image, ImageOps
 
     with Image.open(file_path) as img:
+        img = ImageOps.exif_transpose(img)
         img = img.convert("RGB")
         if img.size != (size, size):
             img = img.resize((size, size), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
+        return img.tobytes()

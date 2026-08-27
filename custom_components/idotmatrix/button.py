@@ -1,8 +1,9 @@
-"""Stateless actions as buttons: freeze toggle and reset.
+"""Stateless actions as buttons: freeze and reset.
 
-Freeze is a button rather than a switch on purpose: the panel only exposes a
-toggle command and its state can't be read back, so a switch would lie about
-which state the panel is in.
+Freeze is a button rather than a switch on purpose. The reverse-engineering
+docs describe 04 00 03 00 as a freeze/unfreeze toggle, but on real hardware
+(tested 2026-08-26) it only freezes — the way back is Reset (or the physical
+button). So the entity is named plainly "Freeze" and Reset is the exit.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ async def async_setup_entry(
 
 
 class IdotMatrixFreezeButton(IdotMatrixEntity, ButtonEntity):
-    _attr_name = "Toggle freeze"
+    _attr_name = "Freeze"
     _attr_icon = "mdi:snowflake"
 
     def __init__(self, client, availability, device_name: str) -> None:

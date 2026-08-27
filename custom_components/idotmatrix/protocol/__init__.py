@@ -9,6 +9,7 @@ against both.
 """
 from .commands import (
     brightness,
+    diy_mode,
     flip,
     reset_sequence,
     screen_power,
@@ -21,6 +22,7 @@ from .image import build_image_upload
 __all__ = [
     "brightness",
     "build_image_upload",
+    "diy_mode",
     "flip",
     "reset_sequence",
     "screen_power",

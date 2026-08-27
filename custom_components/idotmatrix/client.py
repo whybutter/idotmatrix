@@ -70,8 +70,11 @@ class IdotMatrixClient:
     async def reset(self) -> None:
         await self._write(*protocol.reset_sequence())
 
-    async def upload_image(self, png_bytes: bytes) -> None:
-        await self._write(*protocol.build_image_upload(png_bytes))
+    async def upload_image(self, rgb_bytes: bytes) -> None:
+        # DIY mode must be active for the panel to accept pixel data.
+        await self._write(
+            protocol.diy_mode(True), *protocol.build_image_upload(rgb_bytes)
+        )
 
     # -- connection plumbing --
 
