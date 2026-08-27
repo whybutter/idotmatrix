@@ -8,8 +8,15 @@ upload_image:
   fields:
     file_path:
       name: File path
-      description: Path to the image file, must be in an HA-allowed directory (e.g. under /config/www).
-      required: true
+      description: Path to the image file in an HA-allowed directory (e.g. /config/www). Use this OR image_data.
+      required: false
+      selector:
+        text:
+    image_data:
+      name: Image data (base64)
+      description: Base64-encoded image bytes (used by the frontend card to upload a file from your PC). Advanced.
+      required: false
+      advanced: true
       selector:
         text:
     size:
@@ -34,8 +41,15 @@ upload_gif:
   fields:
     file_path:
       name: File path
-      description: Path to the GIF file, must be in an HA-allowed directory (e.g. under /config/www).
-      required: true
+      description: Path to the GIF file in an HA-allowed directory (e.g. /config/www). Use this OR image_data.
+      required: false
+      selector:
+        text:
+    image_data:
+      name: Image data (base64)
+      description: Base64-encoded GIF bytes (used by the frontend card). Advanced.
+      required: false
+      advanced: true
       selector:
         text:
     size:

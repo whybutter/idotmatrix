@@ -24,6 +24,7 @@ from .const import (
     ATTR_END_TIME,
     ATTR_FILE_PATH,
     ATTR_HOUR24,
+    ATTR_IMAGE_DATA,
     ATTR_MINUTES,
     ATTR_MODE,
     ATTR_RGB_COLOR,
@@ -81,25 +82,18 @@ async def async_setup_entry(
     )
 
     platform = entity_platform.async_get_current_platform()
+    _upload_schema = {
+        vol.Optional(ATTR_FILE_PATH): cv.string,
+        vol.Optional(ATTR_IMAGE_DATA): cv.string,
+        vol.Optional(ATTR_SIZE, default=DEFAULT_PANEL_SIZE): vol.All(
+            vol.Coerce(int), vol.In(PANEL_SIZES)
+        ),
+    }
     platform.async_register_entity_service(
-        SERVICE_UPLOAD_IMAGE,
-        {
-            vol.Required(ATTR_FILE_PATH): cv.string,
-            vol.Optional(ATTR_SIZE, default=DEFAULT_PANEL_SIZE): vol.All(
-                vol.Coerce(int), vol.In(PANEL_SIZES)
-            ),
-        },
-        "async_upload_image",
+        SERVICE_UPLOAD_IMAGE, _upload_schema, "async_upload_image"
     )
     platform.async_register_entity_service(
-        SERVICE_UPLOAD_GIF,
-        {
-            vol.Required(ATTR_FILE_PATH): cv.string,
-            vol.Optional(ATTR_SIZE, default=DEFAULT_PANEL_SIZE): vol.All(
-                vol.Coerce(int), vol.In(PANEL_SIZES)
-            ),
-        },
-        "async_upload_gif",
+        SERVICE_UPLOAD_GIF, _upload_schema, "async_upload_gif"
     )
     platform.async_register_entity_service(
         SERVICE_SEND_TEXT,
@@ -232,27 +226,42 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         self._attr_is_on = False
         self.async_write_ha_state()
 
-    async def async_upload_image(self, file_path: str, size: int) -> None:
-        if not self.hass.config.is_allowed_path(file_path):
-            raise HomeAssistantError(
-                f"{file_path} is not in an allowed directory; add it to "
-                "homeassistant.allowlist_external_dirs"
-            )
+    async def async_upload_image(
+        self, size: int, file_path: str | None = None, image_data: str | None = None
+    ) -> None:
+        raw = await self._resolve_source(file_path, image_data)
         pixel_bytes = await self.hass.async_add_executor_job(
-            _prepare_pixels, file_path, size
+            _prepare_pixels, raw, size
         )
         await self._run(self._client.upload_image(pixel_bytes))
 
-    async def async_upload_gif(self, file_path: str, size: int) -> None:
+    async def async_upload_gif(
+        self, size: int, file_path: str | None = None, image_data: str | None = None
+    ) -> None:
+        raw = await self._resolve_source(file_path, image_data)
+        gif_bytes = await self.hass.async_add_executor_job(_prepare_gif, raw, size)
+        await self._run(self._client.upload_gif(gif_bytes))
+
+    async def _resolve_source(
+        self, file_path: str | None, image_data: str | None
+    ) -> bytes:
+        """Return the raw file bytes from either base64 data (from the frontend
+        card/panel — a file picked on the user's PC) or a local file path."""
+        if image_data:
+            import base64
+
+            try:
+                return base64.b64decode(image_data)
+            except (ValueError, TypeError) as err:
+                raise HomeAssistantError(f"Invalid image_data: {err}") from err
+        if not file_path:
+            raise HomeAssistantError("Provide either file_path or image_data")
         if not self.hass.config.is_allowed_path(file_path):
             raise HomeAssistantError(
                 f"{file_path} is not in an allowed directory; add it to "
                 "homeassistant.allowlist_external_dirs"
             )
-        gif_bytes = await self.hass.async_add_executor_job(
-            _prepare_gif, file_path, size
-        )
-        await self._run(self._client.upload_gif(gif_bytes))
+        return await self.hass.async_add_executor_job(_read_file, file_path)
 
     async def async_send_text(
         self,
@@ -335,9 +344,14 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         )
 
 
-def _prepare_pixels(file_path: str, size: int) -> bytes:
-    """Normalize any input image to the panel's raw pixel bytes (blocking; run
-    in executor).
+def _read_file(path: str) -> bytes:
+    with open(path, "rb") as f:
+        return f.read()
+
+
+def _prepare_pixels(raw: bytes, size: int) -> bytes:
+    """Normalize any input image (raw file bytes) to the panel's raw pixel bytes
+    (blocking; run in executor).
 
     The bulk image-upload path wants raw R,G,B pixel data, row-major (not an
     encoded file). Confirmed by disassembling the official app: the photo
@@ -345,9 +359,11 @@ def _prepare_pixels(file_path: str, size: int) -> bytes:
     fork's img.tobytes(). (The G,R,B order in LedView.getColorData belongs to
     the separate interactive-draw screen, not this path.)
     """
+    import io
+
     from PIL import Image, ImageOps
 
-    with Image.open(file_path) as img:
+    with Image.open(io.BytesIO(raw)) as img:
         img = ImageOps.exif_transpose(img)
         img = img.convert("RGB")
         if img.size != (size, size):
@@ -355,18 +371,20 @@ def _prepare_pixels(file_path: str, size: int) -> bytes:
         return img.tobytes()
 
 
-def _prepare_gif(file_path: str, size: int) -> bytes:
-    """Normalize any GIF (or animated image) to an encoded GIF sized to the
-    panel (blocking; run in executor).
+def _prepare_gif(raw: bytes, size: int) -> bytes:
+    """Normalize any GIF (raw file bytes) to an encoded GIF sized to the panel
+    (blocking; run in executor).
 
     The GIF upload path takes an ENCODED .gif byte stream, not raw pixels. We
     re-encode: resize every frame to size×size (NEAREST to preserve pixel art),
     cap the frame count, and re-save. optimize=True is required — the panel's
     transfer fails on an unoptimized GIF (per the maintained fork).
     """
+    import io
+
     from PIL import Image, ImageSequence
 
-    with Image.open(file_path) as img:
+    with Image.open(io.BytesIO(raw)) as img:
         frames: list = []
         durations: list[int] = []
         for frame in ImageSequence.Iterator(img):

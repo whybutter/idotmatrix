@@ -47,6 +47,7 @@ SERVICE_COUNTDOWN = "countdown"
 SERVICE_SCOREBOARD = "scoreboard"
 
 ATTR_FILE_PATH = "file_path"
+ATTR_IMAGE_DATA = "image_data"
 ATTR_SIZE = "size"
 ATTR_RGB_COLOR = "rgb_color"
 ATTR_STYLE = "style"
