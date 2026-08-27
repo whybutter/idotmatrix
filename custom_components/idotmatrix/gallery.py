@@ -36,7 +36,7 @@ class GalleryStore:
         return list(await self._load())
 
     async def async_add(
-        self, name: str, image_data: str, size: int, is_gif: bool
+        self, name: str, image_data: str, size: int, is_gif: bool, mime: str
     ) -> dict:
         items = await self._load()
         self._seq += 1
@@ -44,6 +44,7 @@ class GalleryStore:
             "id": f"{int(time.time())}-{self._seq}",
             "name": name or "sin nombre",
             "image_data": image_data,
+            "mime": mime or ("image/gif" if is_gif else "image/png"),
             "size": size,
             "is_gif": is_gif,
             "created": time.time(),
@@ -77,12 +78,13 @@ def async_register(hass: HomeAssistant) -> None:
             vol.Required("image_data"): str,
             vol.Required("size"): int,
             vol.Optional("is_gif", default=False): bool,
+            vol.Optional("mime", default=""): str,
         }
     )
     @websocket_api.async_response
     async def ws_add(hass, connection, msg):
         item = await store.async_add(
-            msg["name"], msg["image_data"], msg["size"], msg["is_gif"]
+            msg["name"], msg["image_data"], msg["size"], msg["is_gif"], msg["mime"]
         )
         connection.send_result(msg["id"], {"item": item})
 

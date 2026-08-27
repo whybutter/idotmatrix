@@ -17,6 +17,9 @@ import {
 import { UploadModal } from "./modals";
 import { InlineColor, InlineModes, InlineText } from "./InlineControls";
 import { useBusyAction } from "./useBusyAction";
+import { Gallery } from "./Gallery";
+
+type View = "home" | "gallery";
 
 type ModalKey = "upload" | null;
 
@@ -25,15 +28,16 @@ interface Tile {
   label: string;
   icon: React.ReactNode;
   modal?: ModalKey;
+  view?: View;
   soon?: boolean;
 }
 
-// Grid holds only the actions that genuinely need an expanded view (Upload),
-// plus the not-yet-built stubs. Everything common is inline above.
+// Grid holds actions that need an expanded view (Upload), navigation to the
+// Gallery, plus the not-yet-built stubs. Everything common is inline above.
 const TILES: Tile[] = [
   { key: "upload", label: "Upload image", icon: <IconImage size={22} />, modal: "upload" },
+  { key: "gallery", label: "Galería", icon: <IconGif size={22} />, view: "gallery" },
   { key: "graffiti", label: "Graffiti", icon: <IconGraffiti size={22} />, soon: true },
-  { key: "gif", label: "GIF gallery", icon: <IconGif size={22} />, soon: true },
   { key: "score", label: "Scoreboard", icon: <IconScore size={22} />, soon: true },
   { key: "timers", label: "Timers", icon: <IconTimer size={22} />, soon: true },
   { key: "albums", label: "Albums", icon: <IconAlbum size={22} />, soon: true },
@@ -67,6 +71,7 @@ export function App() {
   const hass = useHass();
   const [devices, setDevices] = useState<IDotDevice[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
+  const [view, setView] = useState<View>("home");
   const [modal, setModal] = useState<ModalKey>(null);
   const [toast, setToast] = useState<{ msg: string; err: boolean } | null>(null);
   const hero = useMemo(() => heroPixels(), []);
@@ -205,6 +210,26 @@ export function App() {
           )}
         </header>
 
+        {/* Tabs */}
+        <div className="idot-tabs" role="tablist">
+          <button
+            className={"idot-tab" + (view === "home" ? " active" : "")}
+            onClick={() => setView("home")}
+            role="tab"
+            aria-selected={view === "home"}
+          >
+            Inicio
+          </button>
+          <button
+            className={"idot-tab" + (view === "gallery" ? " active" : "")}
+            onClick={() => setView("gallery")}
+            role="tab"
+            aria-selected={view === "gallery"}
+          >
+            Galería
+          </button>
+        </div>
+
         {/* Device switcher stays visible so the user can pick a device even
             while a panel is connecting. */}
         {devices.length > 1 && (
@@ -230,7 +255,18 @@ export function App() {
           </div>
         )}
 
-        {!available ? (
+        {view === "gallery" ? (
+          device ? (
+            <Gallery device={device} notify={notify} />
+          ) : (
+            <div className="idot-card idot-connecting">
+              <div className="idot-connecting-title">Sin dispositivo</div>
+              <div className="idot-connecting-sub">
+                No se encontró ningún panel iDotMatrix.
+              </div>
+            </div>
+          )
+        ) : !available ? (
           /* Gate: only show the full control surface once the panel is reachable. */
           <div className="idot-card idot-connecting">
             {entityMissing ? (

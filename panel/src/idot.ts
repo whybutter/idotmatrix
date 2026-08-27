@@ -1,4 +1,10 @@
-import type { Hass, HassEntityRegistryEntry, IDotDevice, RGB } from "./types";
+import type {
+  GalleryItem,
+  Hass,
+  HassEntityRegistryEntry,
+  IDotDevice,
+  RGB,
+} from "./types";
 
 export const CLOCK_STYLES = [
   "RGB swipe outline",
@@ -114,6 +120,53 @@ export function arrayBufferToBase64(buffer: ArrayBuffer): string {
     );
   }
   return btoa(binary);
+}
+
+/* ---------------- Gallery WS API ---------------- */
+
+export async function galleryList(hass: Hass): Promise<GalleryItem[]> {
+  const res = await hass.callWS<{ items: GalleryItem[] }>({
+    type: "idotmatrix/gallery/list",
+  });
+  return res?.items ?? [];
+}
+
+export async function galleryAdd(
+  hass: Hass,
+  item: {
+    name: string;
+    image_data: string;
+    size: 16 | 32 | 64;
+    is_gif: boolean;
+    mime: string;
+  }
+): Promise<GalleryItem> {
+  const res = await hass.callWS<{ item: GalleryItem }>({
+    type: "idotmatrix/gallery/add",
+    ...item,
+  });
+  return res.item;
+}
+
+export async function galleryDelete(hass: Hass, id: string): Promise<void> {
+  await hass.callWS({ type: "idotmatrix/gallery/delete", id });
+}
+
+/** Send a stored gallery item to the panel via the existing upload service. */
+export async function gallerySend(
+  hass: Hass,
+  entityId: string,
+  item: GalleryItem
+): Promise<void> {
+  await hass.callService("idotmatrix", item.is_gif ? "upload_gif" : "upload_image", {
+    entity_id: entityId,
+    image_data: item.image_data,
+    size: item.size,
+  });
+}
+
+export function dataUrl(item: GalleryItem): string {
+  return `data:${item.mime};base64,${item.image_data}`;
 }
 
 export function isLightOn(hass: Hass, entityId: string): boolean {

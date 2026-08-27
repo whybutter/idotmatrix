@@ -49,3 +49,13 @@ export interface IDotDevice {
   name: string;
   lightEntityId: string;
 }
+
+export interface GalleryItem {
+  id: string;
+  name: string;
+  image_data: string; // base64 of original file bytes
+  mime: string; // e.g. "image/png", "image/gif"
+  size: 16 | 32 | 64;
+  is_gif: boolean;
+  created: string;
+}
