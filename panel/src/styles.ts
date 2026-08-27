@@ -264,6 +264,50 @@ export const CSS = `
   font-size: .68rem; font-weight: 700; display: grid; place-items: center;
 }
 
+/* ---------- Scoreboard ---------- */
+.idot-score-row {
+  display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 18px;
+}
+.idot-counter { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.idot-counter-label { font-size: .78rem; color: var(--idot-text-dim); font-weight: 600; }
+.idot-counter-display {
+  font-size: 3rem; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  padding: 10px 4px; min-width: 96px; text-align: center;
+  background: #050308; border-radius: 12px; border: 1px solid var(--idot-border);
+  text-shadow: 0 0 14px currentColor;
+}
+.idot-counter-btns { display: flex; align-items: center; gap: 6px; }
+.idot-counter-btn {
+  width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--idot-border);
+  background: var(--idot-bg); color: var(--idot-text); cursor: pointer; font-size: 1.3rem;
+  line-height: 1; display: grid; place-items: center;
+}
+.idot-counter-btn:hover:not(:disabled) { border-color: var(--idot-accent); color: var(--idot-accent); }
+.idot-counter-btn:disabled { opacity: .5; cursor: not-allowed; }
+.idot-counter-input {
+  width: 56px; text-align: center; background: var(--idot-bg); color: var(--idot-text);
+  border: 1px solid var(--idot-border); border-radius: 8px; padding: 7px 4px; font-size: .95rem;
+  font-variant-numeric: tabular-nums;
+}
+.idot-score-sep { font-size: 2.4rem; font-weight: 800; color: var(--idot-text-dim); padding-bottom: 20px; }
+
+/* ---------- Timers ---------- */
+.idot-timer-block {
+  border: 1px solid var(--idot-border); border-radius: 10px; padding: 14px; margin-bottom: 14px;
+  background: var(--idot-bg);
+}
+.idot-timer-title {
+  font-weight: 600; font-size: .92rem; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 8px;
+}
+.idot-timer-inputs { display: flex; align-items: flex-end; gap: 10px; margin-bottom: 12px; }
+.idot-timer-field { display: flex; flex-direction: column; gap: 5px; }
+.idot-timer-field label { font-size: .74rem; color: var(--idot-text-dim); font-weight: 600; }
+.idot-timer-field .idot-input { width: 78px; text-align: center; font-variant-numeric: tabular-nums; }
+.idot-timer-colon { font-size: 1.6rem; font-weight: 800; color: var(--idot-text-dim); padding-bottom: 8px; }
+.idot-timer-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.idot-timer-btns .idot-quick-go { flex: 1; min-width: 84px; text-align: center; padding: 9px 10px; }
+
 /* Modal action row + secondary/danger buttons */
 .idot-modal-actions { display: flex; gap: 10px; }
 .idot-modal-actions .idot-btn, .idot-modal-actions .idot-btn-secondary { flex: 1; }

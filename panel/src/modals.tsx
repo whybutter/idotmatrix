@@ -90,3 +90,225 @@ export function UploadModal({ device, onClose, notify }: BaseProps) {
     </Modal>
   );
 }
+
+/* ---------------- Scoreboard ----------------
+ * Two counters; both travel in every frame, so we always send {count1, count2}
+ * together on any change. */
+export function ScoreboardModal({
+  device,
+  onClose,
+  notify,
+  available,
+}: BaseProps & { available: boolean }) {
+  const hass = useHass();
+  const [c1, setC1] = useState(0);
+  const [c2, setC2] = useState(0);
+  const { status, busy, run } = useBusyAction((m) => notify("Marcador falló: " + m, true));
+
+  const send = (n1: number, n2: number) => {
+    const a = clamp(n1);
+    const b = clamp(n2);
+    setC1(a);
+    setC2(b);
+    if (!available) return;
+    run(() =>
+      hass.callService("idotmatrix", "scoreboard", {
+        entity_id: device.lightEntityId,
+        count1: a,
+        count2: b,
+      })
+    );
+  };
+
+  return (
+    <Modal title="Marcador" onClose={onClose}>
+      {!available && (
+        <p className="idot-hint">El panel no está disponible — conéctalo para enviar.</p>
+      )}
+      <div className="idot-score-row">
+        <Counter color="#0a84ff" label="Local" value={c1} onChange={(v) => send(v, c2)} disabled={busy} />
+        <div className="idot-score-sep">:</div>
+        <Counter color="#ff453a" label="Visitante" value={c2} onChange={(v) => send(c1, v)} disabled={busy} />
+      </div>
+      <div className="idot-modal-actions" style={{ marginTop: 6 }}>
+        <button className="idot-btn-secondary" onClick={() => send(0, 0)} disabled={busy}>
+          Reiniciar (0 : 0)
+        </button>
+        <button
+          className={"idot-btn" + statusFlash(status)}
+          onClick={() => send(c1, c2)}
+          disabled={busy || !available}
+        >
+          {busy ? (
+            <span className="idot-btn-status">
+              <IconSpinner /> &nbsp;Enviando…
+            </span>
+          ) : (
+            "Enviar marcador"
+          )}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function clamp(n: number): number {
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(999, Math.round(n)));
+}
+
+function statusFlash(status: string): string {
+  if (status === "success") return " st-success";
+  if (status === "error") return " st-error";
+  if (status === "busy") return " st-busy";
+  return "";
+}
+
+function Counter({
+  color,
+  label,
+  value,
+  onChange,
+  disabled,
+}: {
+  color: string;
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="idot-counter">
+      <div className="idot-counter-label">{label}</div>
+      <div className="idot-counter-display" style={{ color }}>
+        {value}
+      </div>
+      <div className="idot-counter-btns">
+        <button className="idot-counter-btn" onClick={() => onChange(value - 1)} disabled={disabled}>
+          −
+        </button>
+        <input
+          className="idot-counter-input"
+          type="number"
+          min={0}
+          max={999}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(clamp(+e.target.value))}
+        />
+        <button className="idot-counter-btn" onClick={() => onChange(value + 1)} disabled={disabled}>
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Timers: chronograph + countdown ---------------- */
+export function TimersModal({
+  device,
+  onClose,
+  notify,
+  available,
+}: BaseProps & { available: boolean }) {
+  const hass = useHass();
+  const chrono = useBusyAction((m) => notify("Cronómetro falló: " + m, true));
+  const count = useBusyAction((m) => notify("Cuenta regresiva falló: " + m, true));
+  const [min, setMin] = useState(1);
+  const [sec, setSec] = useState(0);
+
+  const chronoAction = (action: "start" | "pause" | "resume" | "reset") =>
+    chrono.run(() =>
+      hass.callService("idotmatrix", "chronograph", {
+        entity_id: device.lightEntityId,
+        action,
+      })
+    );
+
+  const countAction = (action: "start" | "pause" | "restart" | "stop") =>
+    count.run(() =>
+      hass.callService("idotmatrix", "countdown", {
+        entity_id: device.lightEntityId,
+        action,
+        minutes: min,
+        seconds: sec,
+      })
+    );
+
+  const clampM = (n: number) => Math.max(0, Math.min(59, Number.isNaN(n) ? 0 : Math.round(n)));
+
+  return (
+    <Modal title="Temporizadores" onClose={onClose}>
+      {!available && (
+        <p className="idot-hint">El panel no está disponible — conéctalo para enviar.</p>
+      )}
+
+      {/* Chronograph */}
+      <div className="idot-timer-block">
+        <div className="idot-timer-title">
+          Cronómetro {chrono.busy && <IconSpinner size={14} />}
+        </div>
+        <div className="idot-timer-btns">
+          <button className="idot-quick-go" onClick={() => chronoAction("start")} disabled={chrono.busy || !available}>
+            Iniciar
+          </button>
+          <button className="idot-quick-go" onClick={() => chronoAction("pause")} disabled={chrono.busy || !available}>
+            Pausar
+          </button>
+          <button className="idot-quick-go" onClick={() => chronoAction("resume")} disabled={chrono.busy || !available}>
+            Reanudar
+          </button>
+          <button className="idot-quick-go st-danger" onClick={() => chronoAction("reset")} disabled={chrono.busy || !available}>
+            Reiniciar
+          </button>
+        </div>
+      </div>
+
+      {/* Countdown */}
+      <div className="idot-timer-block">
+        <div className="idot-timer-title">
+          Cuenta regresiva {count.busy && <IconSpinner size={14} />}
+        </div>
+        <div className="idot-timer-inputs">
+          <div className="idot-timer-field">
+            <label>Min</label>
+            <input
+              className="idot-input"
+              type="number"
+              min={0}
+              max={59}
+              value={min}
+              onChange={(e) => setMin(clampM(+e.target.value))}
+            />
+          </div>
+          <div className="idot-timer-colon">:</div>
+          <div className="idot-timer-field">
+            <label>Seg</label>
+            <input
+              className="idot-input"
+              type="number"
+              min={0}
+              max={59}
+              value={sec}
+              onChange={(e) => setSec(clampM(+e.target.value))}
+            />
+          </div>
+        </div>
+        <div className="idot-timer-btns">
+          <button className="idot-quick-go" onClick={() => countAction("start")} disabled={count.busy || !available}>
+            Iniciar
+          </button>
+          <button className="idot-quick-go" onClick={() => countAction("pause")} disabled={count.busy || !available}>
+            Pausar
+          </button>
+          <button className="idot-quick-go" onClick={() => countAction("restart")} disabled={count.busy || !available}>
+            Reiniciar
+          </button>
+          <button className="idot-quick-go st-danger" onClick={() => countAction("stop")} disabled={count.busy || !available}>
+            Detener
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}

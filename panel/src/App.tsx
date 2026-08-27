@@ -7,14 +7,13 @@ import {
   IconBrightness,
   IconDevice,
   IconGif,
-  IconGraffiti,
   IconImage,
   IconPower,
   IconScore,
   IconSpinner,
   IconTimer,
 } from "./icons";
-import { UploadModal } from "./modals";
+import { ScoreboardModal, TimersModal, UploadModal } from "./modals";
 import { InlineColor, InlineModes, InlineText } from "./InlineControls";
 import { useBusyAction } from "./useBusyAction";
 import { Gallery } from "./Gallery";
@@ -22,7 +21,7 @@ import { Albums } from "./Albums";
 
 type View = "home" | "gallery" | "albums";
 
-type ModalKey = "upload" | null;
+type ModalKey = "upload" | "scoreboard" | "timers" | null;
 
 interface Tile {
   key: string;
@@ -39,9 +38,8 @@ const TILES: Tile[] = [
   { key: "upload", label: "Upload image", icon: <IconImage size={22} />, modal: "upload" },
   { key: "gallery", label: "Galería", icon: <IconGif size={22} />, view: "gallery" },
   { key: "albums", label: "Álbumes", icon: <IconAlbum size={22} />, view: "albums" },
-  { key: "graffiti", label: "Graffiti", icon: <IconGraffiti size={22} />, soon: true },
-  { key: "score", label: "Scoreboard", icon: <IconScore size={22} />, soon: true },
-  { key: "timers", label: "Timers", icon: <IconTimer size={22} />, soon: true },
+  { key: "score", label: "Marcador", icon: <IconScore size={22} />, modal: "scoreboard" },
+  { key: "timers", label: "Temporizadores", icon: <IconTimer size={22} />, modal: "timers" },
 ];
 
 // Deterministic pixel-art "city skyline at sunset" for the hero preview.
@@ -380,6 +378,22 @@ export function App() {
       {/* Upload modal (needs file picker + size + preview) */}
       {device && modal === "upload" && (
         <UploadModal device={device} onClose={closeModal} notify={notify} />
+      )}
+      {device && modal === "scoreboard" && (
+        <ScoreboardModal
+          device={device}
+          available={available}
+          onClose={closeModal}
+          notify={notify}
+        />
+      )}
+      {device && modal === "timers" && (
+        <TimersModal
+          device={device}
+          available={available}
+          onClose={closeModal}
+          notify={notify}
+        />
       )}
 
       {toast && <div className={"idot-toast" + (toast.err ? " err" : "")}>{toast.msg}</div>}

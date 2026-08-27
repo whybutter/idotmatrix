@@ -52,13 +52,6 @@ export const IconEffect = ({ size = 30 }: P): JSX.Element => (
   </svg>
 );
 
-export const IconGraffiti = ({ size = 30 }: P): JSX.Element => (
-  <svg {...base(size)}>
-    <path d="M15 5l4 4-9 9-4 1 1-4 8-8Z" />
-    <path d="M13 7l4 4" />
-  </svg>
-);
-
 export const IconGif = ({ size = 30 }: P): JSX.Element => (
   <svg {...base(size)}>
     <rect x="3" y="5" width="18" height="14" rx="2" />
