@@ -54,10 +54,26 @@ class IdotMatrixClient:
         self._client: BleakClientWithServiceCache | None = None
         self._lock = asyncio.Lock()
         self._idle_handle: asyncio.TimerHandle | None = None
+        self._notifications: asyncio.Queue[bytes] = asyncio.Queue()
+        self._last_notification: bytes | None = None
 
     @property
     def address(self) -> str:
         return self._address
+
+    @property
+    def last_notification(self) -> bytes | None:
+        """Most recent bytes the panel sent on the notify characteristic."""
+        return self._last_notification
+
+    def _on_notify(self, _char, data: bytearray) -> None:
+        """fa03 notification handler. The panel signals transfer readiness here
+        (e.g. 05 00 01 00 01 = ready for next block) and answers queries; we log
+        every frame and queue it for anyone awaiting an ack/response."""
+        frame = bytes(data)
+        self._last_notification = frame
+        _LOGGER.debug("notify from %s: %s", self._address, frame.hex())
+        self._notifications.put_nowait(frame)
 
     # -- high-level commands --
 
@@ -179,9 +195,14 @@ class IdotMatrixClient:
                     getattr(client, "mtu_size", "?"),
                     enter_diy,
                 )
+                # Clear any stale notifications before the transfer.
+                while not self._notifications.empty():
+                    self._notifications.get_nowait()
                 for n, block in enumerate(blocks, 1):
                     await self._write_block(client, block, sub)
                     _LOGGER.debug("%s block %d/%d written", label, n, len(blocks))
+                    if n < len(blocks):
+                        await self._wait_for_block_ack()
             except (BleakError, TimeoutError) as err:
                 raise IdotMatrixError(
                     f"{label} upload to {self._address} failed: {err}"
@@ -199,21 +220,25 @@ class IdotMatrixClient:
     ) -> None:
         """Write one 4K bulk block, split into paced BLE sub-writes.
 
-        Sub-writes use write-WITHOUT-response: write-with-response gives GATT
-        error 133 over the WBRG1 proxy. Without response the proxy silently
-        drops packets that arrive too fast (panel stays black), so we pace them
-        with a small delay — that's the flow control. Then read the notify
-        characteristic once as the block-level ack (best-effort).
+        Confirmed against the official app's own BLE log: writes to fa02 are
+        write-WITHOUT-response (write-with-response gives GATT error 133 over
+        the WBRG1 proxy), MTU 517, and the app paces sub-writes ~20ms apart.
+        Without the pacing the proxy silently drops packets and the panel stays
+        black; the delay is the flow control.
         """
         for i in range(0, len(block), sub):
             await client.write_gatt_char(
                 WRITE_CHAR_UUID, block[i : i + sub], response=False
             )
             await asyncio.sleep(BULK_WRITE_PACE_SECONDS)
+
+    async def _wait_for_block_ack(self) -> None:
+        """Between 4K blocks the panel notifies readiness (05 00 01 00 01) on
+        fa03. Best-effort: wait briefly for any notification, else continue."""
         try:
-            await client.read_gatt_char(READ_CHAR_UUID)
-        except (BleakError, TimeoutError) as err:
-            _LOGGER.debug("Bulk block ack read skipped: %s", err)
+            await asyncio.wait_for(self._notifications.get(), timeout=2.0)
+        except (TimeoutError, asyncio.TimeoutError):
+            _LOGGER.debug("No block ack notification; continuing")
 
     # -- connection plumbing --
 
@@ -252,6 +277,13 @@ class IdotMatrixClient:
             raise IdotMatrixError(
                 f"Failed to connect to {self._address}: {err}"
             ) from err
+        # The panel needs notifications enabled on fa03 to accept a bulk
+        # transfer (the official app subscribes before uploading) and uses them
+        # to answer queries. Subscribe once per connection; best-effort.
+        try:
+            await self._client.start_notify(READ_CHAR_UUID, self._on_notify)
+        except (BleakError, TimeoutError) as err:
+            _LOGGER.debug("Could not subscribe to notifications: %s", err)
         await self._sync_time(self._client)
         return self._client
 
