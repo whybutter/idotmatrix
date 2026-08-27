@@ -102,17 +102,20 @@ class SlideshowManager:
             int(album.get("interval", DEFAULT_INTERVAL))
         )
         block_lists: list[list[bytes]] = []
-        for item in items:
+        for index, item in enumerate(items):
             raw = base64.b64decode(item["image_data"])
             size = int(item.get("size", 32))
             if item.get("is_gif"):
                 gif = await self._hass.async_add_executor_job(_prepare_gif, raw, size)
-                block_lists.append(protocol.build_gif_upload(gif, 0xFF, time_key))
+                # byte[15] = album index (0-based), NOT 0xFF.
+                block_lists.append(protocol.build_gif_upload(gif, index, time_key))
             else:
                 pixels = await self._hass.async_add_executor_job(
                     _prepare_pixels, raw, size
                 )
-                block_lists.append(protocol.build_asset_upload(pixels, time_key))
+                block_lists.append(
+                    protocol.build_asset_upload(pixels, time_key, index)
+                )
         await client.save_album(block_lists)
         self._playing[entry_id] = album["id"]
 

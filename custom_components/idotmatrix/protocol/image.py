@@ -30,7 +30,9 @@ ASSET_HEADER_SIZE = 16
 ASSET_TYPE = 0xFF  # "download whole album" path passes index -1 -> 0xFF
 
 
-def build_asset_upload(pixel_bytes: bytes, time_key: int) -> list[bytes]:
+def build_asset_upload(
+    pixel_bytes: bytes, time_key: int, index: int = 0
+) -> list[bytes]:
     """Build a PERSISTENT still-image asset (stored in device memory, carousels,
     no DIY-mode blank/flash). 16-byte header per 4K chunk (byte-exact from the
     app's ImageAgreement.sendImageData):
@@ -42,9 +44,13 @@ def build_asset_upload(pixel_bytes: bytes, time_key: int) -> list[bytes]:
         [5:9]  total pixel length int32 LE (w*h*3)
         [9:13] CRC32(all pixels) int32 LE
         [13:15]interval time-sign, int16 BE (ConvertTime(time_key))
-        [15]   type = 0xFF
+        [15]   album index (0-based) — the asset's slot in the on-device album
 
-    Delivered via the same block+ack transport as image/GIF (no DIY enable).
+    byte[15] is the asset's 0-based album index (confirmed from the app's
+    onFinishSend: curIndex++ then sendData(curIndex)). It is NOT 0xFF — using a
+    fixed 0xFF makes the panel store nothing (the album never renders). Delivered
+    via the same block+ack transport as image/GIF (no DIY enable), and assets
+    MUST be sent one at a time, gated on the previous asset's finish-ack.
     """
     from .commands import convert_time
 
@@ -66,7 +72,7 @@ def build_asset_upload(pixel_bytes: bytes, time_key: int) -> list[bytes]:
         header[5:9] = total_len.to_bytes(4, "little")
         header[9:13] = crc.to_bytes(4, "little")
         header[13:15] = time_sign.to_bytes(2, "big")
-        header[15] = ASSET_TYPE
+        header[15] = index & 0xFF
         packets.append(bytes(header) + chunk)
     return packets
 

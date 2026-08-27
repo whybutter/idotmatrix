@@ -204,6 +204,13 @@ class IdotMatrixClient:
         (interval baked into each asset header) — no flash, survives HA
         disconnects. block_lists come from protocol.build_asset_upload /
         build_gif_upload (asset variant). No DIY-mode enable on this path."""
+        # The panel stores each asset then auto-carousels them — there is no
+        # "commit"/"show album" command; storing IS the display trigger. But
+        # assets must be sent STRICTLY one at a time, each gated on the previous
+        # asset's finish-ack (05 00 01 00 03) — sending them back-to-back makes
+        # the panel drop them (confirmed from the app's onFinishSend chaining).
+        block_ready = bytes.fromhex("0500010001")
+        block_finish = bytes.fromhex("0500010003")
         async with self._lock:
             self._cancel_idle_timer()
             try:
@@ -214,10 +221,18 @@ class IdotMatrixClient:
                 while not self._notifications.empty():
                     self._notifications.get_nowait()
                 for n, blocks in enumerate(block_lists, 1):
-                    for block in blocks:
+                    for j, block in enumerate(blocks):
                         await self._write_block(client, block, sub)
-                        await self._wait_for_block_ack()
-                    _LOGGER.debug("Album asset %d/%d written", n, len(block_lists))
+                        if j < len(blocks) - 1:
+                            await self._wait_for_ack(block_ready)
+                    # Gate on this asset's finish before starting the next one.
+                    got = await self._wait_for_ack(block_finish)
+                    _LOGGER.debug(
+                        "Album asset %d/%d written (finish-ack=%s)",
+                        n,
+                        len(block_lists),
+                        got,
+                    )
             except (BleakError, TimeoutError) as err:
                 raise IdotMatrixError(
                     f"Album save to {self._address} failed: {err}"
@@ -345,6 +360,27 @@ class IdotMatrixClient:
             await asyncio.wait_for(self._notifications.get(), timeout=2.0)
         except (TimeoutError, asyncio.TimeoutError):
             _LOGGER.debug("No block ack notification; continuing")
+
+    async def _wait_for_ack(self, marker: bytes, timeout: float = 4.0) -> bool:
+        """Drain fa03 notifications until one starts with ``marker`` (ignoring
+        unrelated frames like device-info), or the timeout elapses. Returns True
+        if the marker was seen. Used to gate album asset transfers on the panel's
+        per-block ready ack (05 00 01 00 01) and per-asset finish ack
+        (05 00 01 00 03)."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return False
+            try:
+                frame = await asyncio.wait_for(
+                    self._notifications.get(), timeout=remaining
+                )
+            except (TimeoutError, asyncio.TimeoutError):
+                return False
+            if frame.startswith(marker):
+                return True
 
     # -- connection plumbing --
 
