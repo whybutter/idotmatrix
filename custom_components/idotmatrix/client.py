@@ -27,6 +27,7 @@ from homeassistant.core import HomeAssistant, callback
 
 from . import protocol
 from .const import (
+    BULK_WRITE_PACE_SECONDS,
     COMMAND_SETTLE_SECONDS,
     IDLE_DISCONNECT_SECONDS,
     READ_CHAR_UUID,
@@ -146,8 +147,10 @@ class IdotMatrixClient:
             try:
                 client = await self._ensure_connected()
                 if enter_diy:
+                    # response=False like the other short commands (all of which
+                    # work over the proxy); with-response risks GATT error 133.
                     await client.write_gatt_char(
-                        WRITE_CHAR_UUID, protocol.diy_mode(True), response=True
+                        WRITE_CHAR_UUID, protocol.diy_mode(True), response=False
                     )
                     await asyncio.sleep(COMMAND_SETTLE_SECONDS)
                 sub = self._image_subchunk_size(client)
@@ -177,22 +180,19 @@ class IdotMatrixClient:
     async def _write_block(
         self, client: BleakClientWithServiceCache, block: bytes, sub: int
     ) -> None:
-        """Write one 4K bulk block, split into BLE sub-writes.
+        """Write one 4K bulk block, split into paced BLE sub-writes.
 
-        Every sub-write uses write-WITH-response. On a direct adapter the
-        maintained fork can send the non-final pieces without response, but over
-        an ESPHome-style BLE proxy (e.g. the WBRG1 gateway) rapid
-        write-without-response packets get silently dropped — leaving the panel
-        black after DIY mode blanks it. With-response gives per-write flow
-        control and is what actually works through the proxy (the DIY-enable
-        command, also with-response, reaches the panel fine). Then we read the
-        notify characteristic once as the block-level ack (best-effort).
+        Sub-writes use write-WITHOUT-response: write-with-response gives GATT
+        error 133 over the WBRG1 proxy. Without response the proxy silently
+        drops packets that arrive too fast (panel stays black), so we pace them
+        with a small delay — that's the flow control. Then read the notify
+        characteristic once as the block-level ack (best-effort).
         """
-        pieces = range(0, len(block), sub)
-        for i in pieces:
+        for i in range(0, len(block), sub):
             await client.write_gatt_char(
-                WRITE_CHAR_UUID, block[i : i + sub], response=True
+                WRITE_CHAR_UUID, block[i : i + sub], response=False
             )
+            await asyncio.sleep(BULK_WRITE_PACE_SECONDS)
         try:
             await client.read_gatt_char(READ_CHAR_UUID)
         except (BleakError, TimeoutError) as err:

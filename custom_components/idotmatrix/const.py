@@ -19,6 +19,12 @@ COMMAND_SETTLE_SECONDS = 0.5
 # same proxy.
 IDLE_DISCONNECT_SECONDS = 20.0
 
+# Pacing between BLE sub-writes during a bulk (image/GIF) transfer. Bulk data
+# is sent write-WITHOUT-response (write-with-response gives GATT error 133 over
+# the WBRG1 proxy); without a small gap the proxy silently drops the rapid
+# packets and the panel stays black. This delay is the flow control instead.
+BULK_WRITE_PACE_SECONDS = 0.02
+
 # Brightness is 5-100% on the device; HA light entities use 0-255.
 MIN_BRIGHTNESS_PCT = 5
 MAX_BRIGHTNESS_PCT = 100
