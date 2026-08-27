@@ -1,0 +1,158 @@
+# ============================================================================
+# iDotMatrix — Dashboard estilo app (Lovelace)
+#
+# CÓMO USARLO:
+# 1. Ajustes → Paneles de control → (crea uno nuevo, "Manual"/vacío) o abre uno
+#    existente → menú (⋮) → "Editar panel" → menú (⋮) → "Editar en YAML raw".
+# 2. Pega este contenido (o solo las 'cards' dentro de tu vista).
+# 3. IMPORTANTE: reemplaza el prefijo de entidad `PANEL` por el de tu
+#    dispositivo. Ej.: si tu luz es `light.idm_c8a2bc`, haz find/replace de
+#    `PANEL` → `idm_c8a2bc`. Encuentra el prefijo en Ajustes → Dispositivos →
+#    tu iDotMatrix (mira el entity_id de cualquier entidad).
+# ============================================================================
+title: iDotMatrix
+views:
+  - title: Panel
+    path: idotmatrix
+    icon: mdi:dots-grid
+    cards:
+      - type: heading
+        heading: Pantalla
+
+      - type: light
+        entity: light.PANEL
+        name: Panel (color y brillo)
+
+      - type: heading
+        heading: Modos
+
+      - type: entities
+        show_header_toggle: false
+        entities:
+          - entity: select.PANEL_clock_style
+            name: Reloj
+          - entity: select.PANEL_effect
+            name: Efecto
+
+      - type: heading
+        heading: Texto
+
+      - type: entities
+        entities:
+          - entity: text.PANEL_message
+            name: Mensaje
+      - type: button
+        name: Enviar texto
+        icon: mdi:send
+        tap_action:
+          action: toggle
+        entity: button.PANEL_send_text
+
+      - type: heading
+        heading: Cronómetro y cuenta regresiva
+
+      - type: horizontal-stack
+        cards:
+          - type: button
+            name: Start
+            icon: mdi:play
+            entity: button.PANEL_chronograph_start
+            tap_action: { action: toggle }
+          - type: button
+            name: Pausa
+            icon: mdi:pause
+            entity: button.PANEL_chronograph_pause
+            tap_action: { action: toggle }
+          - type: button
+            name: Reset
+            icon: mdi:restart
+            entity: button.PANEL_chronograph_reset
+            tap_action: { action: toggle }
+
+      - type: entities
+        entities:
+          - entity: number.PANEL_countdown_minutes
+            name: Minutos
+          - entity: number.PANEL_countdown_seconds
+            name: Segundos
+      - type: horizontal-stack
+        cards:
+          - type: button
+            name: Iniciar cuenta
+            icon: mdi:timer-play
+            entity: button.PANEL_countdown_start
+            tap_action: { action: toggle }
+          - type: button
+            name: Detener
+            icon: mdi:timer-off
+            entity: button.PANEL_countdown_stop
+            tap_action: { action: toggle }
+
+      - type: heading
+        heading: Marcador
+
+      - type: entities
+        entities:
+          - entity: number.PANEL_score_1
+            name: Score 1
+          - entity: number.PANEL_score_2
+            name: Score 2
+
+      - type: heading
+        heading: Ritmo de micrófono
+
+      - type: entities
+        entities:
+          - entity: number.PANEL_mic_style
+            name: Estilo
+          - entity: number.PANEL_mic_sensitivity
+            name: Sensibilidad
+      - type: button
+        name: Iniciar ritmo de micrófono
+        icon: mdi:microphone
+        entity: button.PANEL_start_mic_rhythm
+        tap_action: { action: toggle }
+
+      - type: heading
+        heading: Imagen / GIF
+
+      # Imagen y GIF necesitan un archivo, así que van como acción.
+      # Ajusta el file_path a tu imagen (bajo /config/www/...).
+      - type: button
+        name: Subir imagen
+        icon: mdi:image
+        tap_action:
+          action: perform-action
+          perform_action: idotmatrix.upload_image
+          target:
+            entity_id: light.PANEL
+          data:
+            file_path: /config/www/tu-imagen.png
+            size: 32
+      - type: button
+        name: Subir GIF
+        icon: mdi:file-gif-box
+        tap_action:
+          action: perform-action
+          perform_action: idotmatrix.upload_gif
+          target:
+            entity_id: light.PANEL
+          data:
+            file_path: /config/www/tu-animacion.gif
+            size: 32
+
+      - type: heading
+        heading: Sistema
+
+      - type: entities
+        entities:
+          - entity: switch.PANEL_flip_display
+            name: Voltear
+          - entity: number.PANEL_screen_on_time
+            name: Tiempo de pantalla
+          - entity: button.PANEL_reset
+            name: Reset
+          - entity: sensor.PANEL_firmware
+            name: Firmware
+          - entity: sensor.PANEL_panel_type
+            name: Tipo de panel
