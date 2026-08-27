@@ -341,6 +341,23 @@ class IdotMatrixClient:
                 "use by the iDotMatrix phone app (close it), or its BLE proxy "
                 f"may be unreachable. ({err})"
             ) from err
+
+        # Over a weak/distant proxy the link can come up but GATT service
+        # discovery is incomplete ("partial" connection) — the write
+        # characteristic is then missing. Detect that and give an actionable
+        # error instead of a cryptic "characteristic not found" mid-write.
+        if self._client.services.get_characteristic(WRITE_CHAR_UUID) is None:
+            try:
+                await self._client.clear_cache()
+            except (BleakError, AttributeError) as err:
+                _LOGGER.debug("clear_cache failed: %s", err)
+            await self._disconnect_locked()
+            raise IdotMatrixError(
+                f"Connected to {self._address} but couldn't read its services "
+                "(weak BLE link — the proxy is too far). Pin a closer/stronger "
+                "proxy in the integration options."
+            )
+
         # The panel needs notifications enabled on fa03 to accept a bulk
         # transfer (the official app subscribes before uploading) and uses them
         # to answer queries. Subscribe once per connection; best-effort.
@@ -378,10 +395,14 @@ class IdotMatrixClient:
 
     async def disconnect(self) -> None:
         async with self._lock:
-            self._cancel_idle_timer()
-            if self._client is not None:
-                try:
-                    await self._client.disconnect()
-                except BleakError as err:
-                    _LOGGER.debug("Error disconnecting from %s: %s", self._address, err)
-                self._client = None
+            await self._disconnect_locked()
+
+    async def _disconnect_locked(self) -> None:
+        """Tear down the connection. Caller must hold the lock."""
+        self._cancel_idle_timer()
+        if self._client is not None:
+            try:
+                await self._client.disconnect()
+            except BleakError as err:
+                _LOGGER.debug("Error disconnecting from %s: %s", self._address, err)
+            self._client = None
