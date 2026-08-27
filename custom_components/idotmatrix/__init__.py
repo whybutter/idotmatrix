@@ -55,24 +55,46 @@ IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
 
 
 CARD_URL = f"/{DOMAIN}/idotmatrix-card.js"
+PANEL_URL = f"/{DOMAIN}/idotmatrix-panel.js"
 
 
-async def _async_register_card(hass: HomeAssistant) -> None:
-    """Serve the bundled Lovelace card and auto-load it (once)."""
-    if hass.data.get(f"{DOMAIN}_card"):
+async def _async_register_frontend(hass: HomeAssistant) -> None:
+    """Serve + register the bundled Lovelace card and sidebar panel (once)."""
+    if hass.data.get(f"{DOMAIN}_frontend"):
         return
-    hass.data[f"{DOMAIN}_card"] = True
-    js = os.path.join(os.path.dirname(__file__), "frontend", "idotmatrix-card.js")
+    hass.data[f"{DOMAIN}_frontend"] = True
+    fdir = os.path.join(os.path.dirname(__file__), "frontend")
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(CARD_URL, js, False)]
+        [
+            StaticPathConfig(CARD_URL, os.path.join(fdir, "idotmatrix-card.js"), False),
+            StaticPathConfig(PANEL_URL, os.path.join(fdir, "idotmatrix-panel.js"), False),
+        ]
     )
     from homeassistant.components.frontend import add_extra_js_url
 
     add_extra_js_url(hass, CARD_URL)
 
+    from homeassistant.components import panel_custom
+
+    try:
+        await panel_custom.async_register_panel(
+            hass,
+            frontend_url_path=DOMAIN,
+            webcomponent_name="idotmatrix-panel",
+            js_url=PANEL_URL,
+            sidebar_title="iDotMatrix",
+            sidebar_icon="mdi:view-grid-plus",
+            require_admin=False,
+            config={},
+            embed_iframe=False,
+        )
+    except ValueError:
+        # Already registered (e.g. a second config entry) — fine.
+        pass
+
 
 async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -> bool:
-    await _async_register_card(hass)
+    await _async_register_frontend(hass)
     address: str = entry.data[CONF_ADDRESS]
     preferred = entry.options.get(CONF_PREFERRED_PROXY, PROXY_AUTO)
     preferred_source = None if preferred == PROXY_AUTO else preferred
