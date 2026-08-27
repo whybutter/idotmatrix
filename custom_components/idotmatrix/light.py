@@ -19,6 +19,9 @@ from .const import (
     ATTR_COLORS,
     ATTR_COUNT1,
     ATTR_COUNT2,
+    ATTR_ECO_BRIGHTNESS,
+    ATTR_ENABLED,
+    ATTR_END_TIME,
     ATTR_FILE_PATH,
     ATTR_HOUR24,
     ATTR_MINUTES,
@@ -28,6 +31,7 @@ from .const import (
     ATTR_SHOW_DATE,
     ATTR_SIZE,
     ATTR_SPEED,
+    ATTR_START_TIME,
     ATTR_STYLE,
     ATTR_TEXT,
     CHRONOGRAPH_ACTIONS,
@@ -48,6 +52,7 @@ from .const import (
     SERVICE_FULLSCREEN_COLOR,
     SERVICE_SCOREBOARD,
     SERVICE_SEND_TEXT,
+    SERVICE_SET_ECO,
     SERVICE_SHOW_CLOCK,
     SERVICE_SHOW_EFFECT,
     SERVICE_UPLOAD_GIF,
@@ -165,6 +170,18 @@ async def async_setup_entry(
         },
         "async_scoreboard",
     )
+    platform.async_register_entity_service(
+        SERVICE_SET_ECO,
+        {
+            vol.Required(ATTR_ENABLED): cv.boolean,
+            vol.Required(ATTR_START_TIME): cv.time,
+            vol.Required(ATTR_END_TIME): cv.time,
+            vol.Optional(ATTR_ECO_BRIGHTNESS, default=10): vol.All(
+                int, vol.Range(0, 100)
+            ),
+        },
+        "async_set_eco",
+    )
 
 
 class IdotMatrixLight(IdotMatrixEntity, LightEntity):
@@ -277,6 +294,20 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
 
     async def async_scoreboard(self, count1: int, count2: int) -> None:
         await self._run(self._client.scoreboard(count1, count2))
+
+    async def async_set_eco(
+        self, enabled: bool, start_time, end_time, eco_brightness: int
+    ) -> None:
+        await self._run(
+            self._client.set_eco(
+                enabled,
+                start_time.hour,
+                start_time.minute,
+                end_time.hour,
+                end_time.minute,
+                eco_brightness,
+            )
+        )
 
 
 def _prepare_pixels(file_path: str, size: int) -> bytes:

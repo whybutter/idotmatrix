@@ -50,6 +50,11 @@ panel, so writable entities are marked `assumed_state`):
   - `idotmatrix.chronograph` — stopwatch (reset/start/pause/resume).
   - `idotmatrix.countdown` — timer (start/stop/pause/restart, mm:ss).
   - `idotmatrix.scoreboard` — two counters (0-999 each).
+  - `idotmatrix.set_eco_mode` — energy-saving auto-dim window (start/end
+    time + eco brightness).
+- **Number: Screen-on time** — auto screen-off timeout.
+
+The panel's clock is synced to local time automatically on every connect.
 - **Switch: Flip display** — 180° rotation (explicit on/off command).
 - **Button: Reset** — general "fix the panel" command. Wipes content back to
   the default animations.

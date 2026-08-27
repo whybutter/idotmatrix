@@ -24,6 +24,7 @@ from bleak_retry_connector import BleakClientWithServiceCache, establish_connect
 
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.util import dt as dt_util
 
 from . import protocol
 from .const import (
@@ -99,6 +100,22 @@ class IdotMatrixClient:
 
     async def scoreboard(self, count1: int, count2: int) -> None:
         await self._write(protocol.scoreboard(count1, count2))
+
+    async def set_eco(
+        self,
+        enabled: bool,
+        start_h: int,
+        start_m: int,
+        end_h: int,
+        end_m: int,
+        eco_brightness: int,
+    ) -> None:
+        await self._write(
+            protocol.eco(enabled, start_h, start_m, end_h, end_m, eco_brightness)
+        )
+
+    async def set_screen_on_time(self, value: int) -> None:
+        await self._write(protocol.screen_on_time(value))
 
     async def upload_image(self, pixel_bytes: bytes) -> None:
         """Upload a still image.
@@ -235,7 +252,19 @@ class IdotMatrixClient:
             raise IdotMatrixError(
                 f"Failed to connect to {self._address}: {err}"
             ) from err
+        await self._sync_time(self._client)
         return self._client
+
+    async def _sync_time(self, client: BleakClientWithServiceCache) -> None:
+        """Push the current local time on connect so on-device clock/schedule
+        features are accurate. Best-effort — never fail the connection over it."""
+        try:
+            await client.write_gatt_char(
+                WRITE_CHAR_UUID, protocol.set_time(dt_util.now()), response=False
+            )
+            await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+        except (BleakError, TimeoutError) as err:
+            _LOGGER.debug("Time sync on connect skipped: %s", err)
 
     @callback
     def _schedule_idle_disconnect(self) -> None:

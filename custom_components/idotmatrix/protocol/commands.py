@@ -122,3 +122,45 @@ def scoreboard(count1: int, count2: int) -> bytes:
     return bytes(
         [0x08, 0x00, 0x0A, 0x80, c1 & 0xFF, (c1 >> 8) & 0xFF, c2 & 0xFF, (c2 >> 8) & 0xFF]
     )
+
+
+def eco(
+    enabled: bool,
+    start_h: int,
+    start_m: int,
+    end_h: int,
+    end_m: int,
+    eco_brightness: int,
+) -> bytes:
+    """Energy-saving auto-dim window: between start and end the panel drops to
+    eco_brightness. Times 0-23h / 0-59m; brightness 0-255."""
+    for h in (start_h, end_h):
+        if not 0 <= h <= 23:
+            raise ValueError("hours must be 0-23")
+    for m in (start_m, end_m):
+        if not 0 <= m <= 59:
+            raise ValueError("minutes must be 0-59")
+    if not 0 <= eco_brightness <= 255:
+        raise ValueError("eco brightness must be 0-255")
+    return bytes(
+        [
+            0x0A,
+            0x00,
+            0x02,
+            0x80,
+            1 if enabled else 0,
+            start_h,
+            start_m,
+            end_h,
+            end_m,
+            eco_brightness,
+        ]
+    )
+
+
+def screen_on_time(value: int) -> bytes:
+    """Auto screen-off timeout (cmd 0x0f, from the app disassembly). Value is a
+    device-defined unit (0-255)."""
+    if not 0 <= value <= 255:
+        raise ValueError("screen-on-time value must be 0-255")
+    return bytes([0x05, 0x00, 0x0F, 0x80, value])

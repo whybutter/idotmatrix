@@ -116,6 +116,40 @@ send_text:
       selector:
         color_rgb:
 
+set_eco_mode:
+  name: Set eco mode
+  description: Configure the energy-saving auto-dim window (panel dims to a lower brightness between the start and end times).
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+  fields:
+    enabled:
+      name: Enabled
+      required: true
+      selector:
+        boolean:
+    start_time:
+      name: Start time
+      required: true
+      selector:
+        time:
+    end_time:
+      name: End time
+      required: true
+      selector:
+        time:
+    eco_brightness:
+      name: Eco brightness
+      description: Brightness (0-100) while inside the window.
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 0
+          max: 100
+          mode: slider
+
 fullscreen_color:
   name: Fullscreen color
   description: Fill the whole panel with one solid color.
