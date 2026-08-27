@@ -21,6 +21,14 @@ export const EFFECT_STYLES = [
   "Random colored pixels (alt)",
 ];
 
+// Mic rhythm styles: value -> label (style is 1-4).
+export const MIC_STYLES: { value: number; label: string }[] = [
+  { value: 1, label: "Dancing guy" },
+  { value: 2, label: "Heart" },
+  { value: 3, label: "Gummy bear" },
+  { value: 4, label: "Eyes and mouth" },
+];
+
 export const TEXT_MODES = [
   "Static",
   "Scroll left",

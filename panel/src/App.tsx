@@ -1,29 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 import { useHass } from "./hass-context";
-import {
-  discoverDevices,
-  getBrightnessPct,
-  isLightOn,
-} from "./idot";
+import { discoverDevices, getBrightnessPct, isLightOn } from "./idot";
 import type { IDotDevice } from "./types";
 import {
   IconAlbum,
   IconBrightness,
-  IconClock,
-  IconColor,
   IconDevice,
-  IconEffect,
   IconGif,
   IconGraffiti,
   IconImage,
   IconPower,
   IconScore,
-  IconText,
   IconTimer,
 } from "./icons";
-import { ClockModal, ColorModal, EffectModal, TextModal, UploadModal } from "./modals";
+import { UploadModal } from "./modals";
+import { InlineColor, InlineModes, InlineText } from "./InlineControls";
 
-type ModalKey = "color" | "text" | "upload" | "clock" | "effect" | null;
+type ModalKey = "upload" | null;
 
 interface Tile {
   key: string;
@@ -33,17 +26,15 @@ interface Tile {
   soon?: boolean;
 }
 
+// Grid holds only the actions that genuinely need an expanded view (Upload),
+// plus the not-yet-built stubs. Everything common is inline above.
 const TILES: Tile[] = [
-  { key: "color", label: "Color", icon: <IconColor />, modal: "color" },
-  { key: "text", label: "Text", icon: <IconText />, modal: "text" },
-  { key: "upload", label: "Upload image", icon: <IconImage />, modal: "upload" },
-  { key: "clock", label: "Clock", icon: <IconClock />, modal: "clock" },
-  { key: "effect", label: "Effect", icon: <IconEffect />, modal: "effect" },
-  { key: "graffiti", label: "Graffiti", icon: <IconGraffiti />, soon: true },
-  { key: "gif", label: "GIF gallery", icon: <IconGif />, soon: true },
-  { key: "score", label: "Scoreboard", icon: <IconScore />, soon: true },
-  { key: "timers", label: "Timers", icon: <IconTimer />, soon: true },
-  { key: "albums", label: "Albums", icon: <IconAlbum />, soon: true },
+  { key: "upload", label: "Upload image", icon: <IconImage size={22} />, modal: "upload" },
+  { key: "graffiti", label: "Graffiti", icon: <IconGraffiti size={22} />, soon: true },
+  { key: "gif", label: "GIF gallery", icon: <IconGif size={22} />, soon: true },
+  { key: "score", label: "Scoreboard", icon: <IconScore size={22} />, soon: true },
+  { key: "timers", label: "Timers", icon: <IconTimer size={22} />, soon: true },
+  { key: "albums", label: "Albums", icon: <IconAlbum size={22} />, soon: true },
 ];
 
 // Deterministic pixel-art "city skyline at sunset" for the hero preview.
@@ -51,20 +42,17 @@ const HERO_COLS = 22;
 const HERO_ROWS = 11;
 function heroPixels(): string[] {
   const grid: string[] = [];
-  // skyline heights
   const heights = [3, 5, 4, 7, 6, 8, 5, 9, 6, 4, 7, 5, 8, 6, 9, 5, 7, 4, 6, 5, 3, 4];
   for (let y = 0; y < HERO_ROWS; y++) {
     for (let x = 0; x < HERO_COLS; x++) {
       const rowFromBottom = HERO_ROWS - 1 - y;
       const h = heights[x % heights.length];
       if (rowFromBottom < h) {
-        // building — dark purple with occasional lit windows
         const lit = (x * 7 + y * 3) % 5 === 0;
-        grid.push(lit ? "#ffd166" : "#2a1e4e");
+        grid.push(lit ? "#ffd166" : "#243044");
       } else {
-        // sky gradient sunset
         const t = y / HERO_ROWS;
-        if (t < 0.35) grid.push("#3a2a63");
+        if (t < 0.35) grid.push("#20304f");
         else if (t < 0.55) grid.push("#7a3d8f");
         else grid.push("#e8663d");
       }
@@ -91,7 +79,7 @@ export function App() {
     return () => {
       alive = false;
     };
-    // Re-run discovery only rarely — hass identity is stable enough; we run once.
+    // Discovery runs once on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -159,7 +147,7 @@ export function App() {
     <div className="idot-root">
       <div className="idot-shell">
         {/* Header */}
-        <header className="idot-header">
+        <header className="idot-card idot-header">
           <div className="idot-title-block">
             <div className="idot-logo" aria-hidden>
               {Array.from({ length: 16 }).map((_, i) => (
@@ -196,16 +184,14 @@ export function App() {
           </div>
         </header>
 
-        {/* Hero preview */}
-        <div className="idot-hero">
+        {/* Hero preview (compact, centered) */}
+        <div className="idot-card idot-hero">
           <div
             className="idot-hero-panel"
-            style={{
-              gridTemplateColumns: `repeat(${HERO_COLS}, var(--cell))`,
-            }}
+            style={{ gridTemplateColumns: `repeat(${HERO_COLS}, var(--cell))` }}
           >
             {hero.map((c, i) => (
-              <div key={i} className="px" style={{ background: on ? c : "#151022" }} />
+              <div key={i} className="px" style={{ background: on ? c : "#12161d" }} />
             ))}
           </div>
           <div className="idot-hero-caption">iDotMatrix</div>
@@ -213,7 +199,7 @@ export function App() {
 
         {/* Status row */}
         <div className="idot-status-row">
-          <div className="idot-status-card">
+          <div className="idot-card idot-status-card">
             <div className="idot-status-icon">
               <IconDevice />
             </div>
@@ -238,8 +224,13 @@ export function App() {
             )}
           </div>
 
-          <div className="idot-status-card power-card" onClick={togglePower} role="button" tabIndex={0}>
-            <div className="idot-status-icon" style={{ color: on ? "var(--idot-accent-2)" : undefined }}>
+          <div
+            className="idot-card idot-status-card power-card"
+            onClick={togglePower}
+            role="button"
+            tabIndex={0}
+          >
+            <div className={"idot-status-icon" + (on ? " on" : "")}>
               <IconPower />
             </div>
             <div>
@@ -250,7 +241,12 @@ export function App() {
           </div>
         </div>
 
-        {/* Feature grid */}
+        {/* Inline quick controls */}
+        {device && <InlineColor device={device} notify={notify} />}
+        {device && <InlineText device={device} notify={notify} />}
+        {device && <InlineModes device={device} notify={notify} />}
+
+        {/* Remaining tiles: Upload (modal) + coming-soon stubs */}
         <div className="idot-grid">
           {TILES.map((t) => (
             <div
@@ -260,29 +256,19 @@ export function App() {
               role="button"
               tabIndex={t.soon ? -1 : 0}
             >
-              {t.soon && <span className="idot-soon-badge">Próximamente</span>}
               <div className="idot-tile-icon">{t.icon}</div>
-              <div className="idot-tile-label">{t.label}</div>
+              <div className="idot-tile-body">
+                <div className="idot-tile-label">{t.label}</div>
+                {t.soon && <div className="idot-soon-badge">Próximamente</div>}
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Modals */}
-      {device && modal === "color" && (
-        <ColorModal device={device} onClose={closeModal} notify={notify} />
-      )}
-      {device && modal === "text" && (
-        <TextModal device={device} onClose={closeModal} notify={notify} />
-      )}
+      {/* Upload modal (needs file picker + size + preview) */}
       {device && modal === "upload" && (
         <UploadModal device={device} onClose={closeModal} notify={notify} />
-      )}
-      {device && modal === "clock" && (
-        <ClockModal device={device} onClose={closeModal} notify={notify} />
-      )}
-      {device && modal === "effect" && (
-        <EffectModal device={device} onClose={closeModal} notify={notify} />
       )}
 
       {toast && <div className={"idot-toast" + (toast.err ? " err" : "")}>{toast.msg}</div>}
