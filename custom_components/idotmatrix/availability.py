@@ -15,9 +15,13 @@ from homeassistant.core import HomeAssistant, callback
 class IdotMatrixAvailability:
     def __init__(self, hass: HomeAssistant, address: str) -> None:
         self._listeners: list[Callable[[], None]] = []
-        self._available = bluetooth.async_address_present(
+        self._present = bluetooth.async_address_present(
             hass, address, connectable=True
         )
+        # A BLE device STOPS advertising while connected, so advertisement
+        # tracking alone would flip us to unavailable during an active
+        # connection. Treat "we hold a connection" as available too.
+        self._connected = False
         self._unsubs = [
             bluetooth.async_register_callback(
                 hass,
@@ -32,7 +36,15 @@ class IdotMatrixAvailability:
 
     @property
     def available(self) -> bool:
-        return self._available
+        return self._connected or self._present
+
+    @callback
+    def async_set_connected(self, connected: bool) -> None:
+        """The client calls this on connect/disconnect so we stay available
+        while a connection is held (when the device isn't advertising)."""
+        if self._connected != connected:
+            self._connected = connected
+            self._async_notify()
 
     @callback
     def _async_advertisement(
@@ -40,15 +52,15 @@ class IdotMatrixAvailability:
         service_info: bluetooth.BluetoothServiceInfoBleak,
         change: bluetooth.BluetoothChange,
     ) -> None:
-        if not self._available:
-            self._available = True
+        if not self._present:
+            self._present = True
             self._async_notify()
 
     @callback
     def _async_unavailable(
         self, service_info: bluetooth.BluetoothServiceInfoBleak
     ) -> None:
-        self._available = False
+        self._present = False
         self._async_notify()
 
     @callback

@@ -69,6 +69,16 @@ class IdotMatrixClient:
         self._last_notification: bytes | None = None
         self._device_info: dict | None = None
         self._device_info_listeners: list = []
+        self._connection_listener = None
+
+    def set_connection_listener(self, cb) -> None:
+        """Called with True/False on connect/disconnect (feeds availability so
+        we stay 'available' while connected — the panel stops advertising then)."""
+        self._connection_listener = cb
+
+    def _notify_connection(self, connected: bool) -> None:
+        if self._connection_listener is not None:
+            self._connection_listener(connected)
 
     @property
     def address(self) -> str:
@@ -366,6 +376,7 @@ class IdotMatrixClient:
         except (BleakError, TimeoutError) as err:
             _LOGGER.debug("Could not subscribe to notifications: %s", err)
         await self._sync_time(self._client)
+        self._notify_connection(True)
         return self._client
 
     async def _sync_time(self, client: BleakClientWithServiceCache) -> None:
@@ -406,3 +417,4 @@ class IdotMatrixClient:
             except BleakError as err:
                 _LOGGER.debug("Error disconnecting from %s: %s", self._address, err)
             self._client = None
+        self._notify_connection(False)

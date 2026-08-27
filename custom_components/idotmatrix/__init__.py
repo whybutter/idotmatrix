@@ -106,9 +106,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -
     address: str = entry.data[CONF_ADDRESS]
     preferred = entry.options.get(CONF_PREFERRED_PROXY, PROXY_AUTO)
     preferred_source = None if preferred == PROXY_AUTO else preferred
+    availability = IdotMatrixAvailability(hass, address)
+    client = IdotMatrixClient(hass, address, preferred_source=preferred_source)
+    # Stay "available" while we hold a connection (the panel stops advertising
+    # when connected, which would otherwise flip the entity to unavailable).
+    client.set_connection_listener(availability.async_set_connected)
     entry.runtime_data = IdotMatrixData(
-        client=IdotMatrixClient(hass, address, preferred_source=preferred_source),
-        availability=IdotMatrixAvailability(hass, address),
+        client=client,
+        availability=availability,
         device_name=entry.title,
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
