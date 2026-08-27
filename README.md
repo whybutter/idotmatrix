@@ -121,3 +121,14 @@ Protocol reverse-engineered by the `derkalle4/python3-idotmatrix-library`
 community (archived 2026-06-05), continued in
 `Toon-nooT/idotmatrix-api-client` / `markusressel/python3-idotmatrix-library`
 and `8none1/idotmatrix`, plus a disassembly of the official app.
+
+## Documentation
+
+Reverse-engineering notes and reference material live in [`docs/`](./docs/):
+
+- [BLE protocol reference](./docs/bluetooth-protocol.md) — every command, framing, and gotcha.
+- [Cloud catalog API](./docs/cloud-catalog.md) — the app's signed/encrypted art catalog and the asset-decode.
+- [Integration architecture](./docs/architecture.md) — module layout and the tricky BLE behaviors.
+
+These exist so anyone else reverse-engineering an iDotMatrix panel can find the
+references we had to discover the hard way.
