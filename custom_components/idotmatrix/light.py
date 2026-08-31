@@ -1,6 +1,7 @@
 """Panel power + brightness as a light entity, plus the bulk/mode services."""
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import Any
 
 import voluptuous as vol
@@ -40,11 +41,13 @@ from .const import (
     CLOCK_STYLES,
     COUNTDOWN_ACTIONS,
     DEFAULT_EFFECT_COLORS,
+    DEFAULT_GAMMA,
     DEFAULT_GIF_FRAME_MS,
     DEFAULT_MIC_SENSITIVITY,
     DEFAULT_PANEL_SIZE,
     DEFAULT_TEXT_SPEED,
     EFFECT_STYLES,
+    MAX_ALBUM_ASSET_BYTES,
     MAX_BRIGHTNESS_PCT,
     MAX_GIF_FRAMES,
     MAX_TEXT_LEN,
@@ -78,7 +81,7 @@ async def async_setup_entry(
 ) -> None:
     data = entry.runtime_data
     async_add_entities(
-        [IdotMatrixLight(data.client, data.availability, data.device_name)]
+        [IdotMatrixLight(data.client, data.availability, data.device_name, data.gamma)]
     )
 
     platform = entity_platform.async_get_current_platform()
@@ -200,8 +203,11 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     _attr_supported_color_modes = {ColorMode.RGB}
     _attr_assumed_state = True  # panel state can't be read back
 
-    def __init__(self, client, availability, device_name: str) -> None:
+    def __init__(
+        self, client, availability, device_name: str, gamma: float = DEFAULT_GAMMA
+    ) -> None:
         super().__init__(client, availability, device_name, "light")
+        self._gamma = gamma
         self._attr_rgb_color = (255, 255, 255)
         self._attr_brightness = 255
 
@@ -231,7 +237,7 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     ) -> None:
         raw = await self._resolve_source(file_path, image_data)
         pixel_bytes = await self.hass.async_add_executor_job(
-            _prepare_pixels, raw, size
+            _prepare_pixels, raw, size, (0, 0, 0), self._gamma
         )
         await self._run(self._client.upload_image(pixel_bytes))
 
@@ -239,7 +245,9 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         self, size: int, file_path: str | None = None, image_data: str | None = None
     ) -> None:
         raw = await self._resolve_source(file_path, image_data)
-        gif_bytes = await self.hass.async_add_executor_job(_prepare_gif, raw, size)
+        gif_bytes = await self.hass.async_add_executor_job(
+            _prepare_gif, raw, size, (0, 0, 0), self._gamma
+        )
         await self._run(self._client.upload_gif(gif_bytes))
 
     async def _resolve_source(
@@ -389,8 +397,29 @@ def _fit_rgb(img, size, background, pixel_art, crop_box=None, square_side=None):
     return rgb
 
 
+@lru_cache(maxsize=8)
+def _gamma_lut(gamma: float) -> tuple[int, ...]:
+    """256-entry LUT for `out = 255 * (in/255) ** gamma`, tripled for RGB.
+
+    See CONF_GAMMA in const.py for why this is needed and how 2.2 was chosen.
+    Cached because it is rebuilt per frame of every GIF otherwise.
+    """
+    ramp = tuple(min(255, round(255 * ((i / 255) ** gamma))) for i in range(256))
+    return ramp * 3
+
+
+def _apply_gamma(img, gamma: float):
+    """Linearise an RGB image for the panel. gamma == 1.0 is a no-op."""
+    if abs(gamma - 1.0) < 1e-3:
+        return img
+    return img.point(_gamma_lut(gamma))
+
+
 def _prepare_pixels(
-    raw: bytes, size: int, background: tuple[int, int, int] = (0, 0, 0)
+    raw: bytes,
+    size: int,
+    background: tuple[int, int, int] = (0, 0, 0),
+    gamma: float = DEFAULT_GAMMA,
 ) -> bytes:
     """Normalize any input image (raw file bytes) to the panel's raw pixel bytes
     (blocking; run in executor).
@@ -417,11 +446,66 @@ def _prepare_pixels(
             # Transparent art (emoji, icons): trim the margin, pad to square, and
             # flatten onto the background so it fills the panel.
             rgb = _fit_rgb(img, size, background, pixel_art=False)
-        return rgb.tobytes()
+        return _apply_gamma(rgb, gamma).tobytes()
+
+
+def _prepare_still_as_gif(
+    raw: bytes,
+    size: int,
+    dwell_seconds: int,
+    background: tuple[int, int, int] = (0, 0, 0),
+    gamma: float = DEFAULT_GAMMA,
+) -> bytes:
+    """Normalize a still image into a single-frame encoded GIF, for album use.
+
+    Why not the raw-pixel asset path (protocol.build_asset_upload, type 0x02)?
+    The panel keeps stills and animations in two separate material banks, and
+    when both are non-empty the carousel plays ONLY the GIF bank — the stills
+    are stored (they finish-ack fine) but never displayed. Verified on hardware
+    in both orders: stills-then-GIFs and GIFs-then-stills each played only the
+    GIFs; either type alone plays correctly. So an album sends everything
+    through the GIF agreement, which makes album playback independent of the
+    mix of stills and animations it happens to contain.
+
+    `dwell_seconds` is how long the slide should stay up, and it is NOT
+    optional: the panel advances the carousel after one full GIF loop and
+    ignores the header's interval time-sign for this, so the loop duration IS
+    the slide duration. A still left at PIL's default ~100ms loop is skipped by
+    the carousel entirely (measured: zero appearances over 90s) — which is what
+    made album stills look like they had failed to upload.
+
+    The cost of the GIF route is its 256-colour palette. At 32x32 that is ~1024
+    pixels against an adaptive 256-colour palette: measured mean channel error
+    2.2/255 on a photo — invisible on the LED panel.
+    """
+    import io
+
+    pixels = _prepare_pixels(raw, size, background, gamma)
+
+    from PIL import Image
+
+    frame = Image.frombytes("RGB", (size, size), pixels)
+    buf = io.BytesIO()
+    # One frame held for the whole dwell. GIF stores the delay in centiseconds
+    # (max 65535cs ≈ 655s), comfortably above the longest carousel interval.
+    # optimize=True matches the animated path — the panel's transfer fails on an
+    # unoptimized GIF.
+    frame.convert("P", palette=Image.ADAPTIVE, colors=256).save(
+        buf,
+        format="GIF",
+        optimize=True,
+        duration=max(1, int(dwell_seconds)) * 1000,
+        loop=0,
+    )
+    return buf.getvalue()
 
 
 def _prepare_gif(
-    raw: bytes, size: int, background: tuple[int, int, int] = (0, 0, 0)
+    raw: bytes,
+    size: int,
+    background: tuple[int, int, int] = (0, 0, 0),
+    gamma: float = DEFAULT_GAMMA,
+    dwell_seconds: int = 0,
 ) -> bytes:
     """Normalize any GIF (raw file bytes) to an encoded GIF sized to the panel
     (blocking; run in executor).
@@ -433,6 +517,12 @@ def _prepare_gif(
     transfer fails on an unoptimized GIF (per the maintained fork). The shared
     trim + background composite fixes sprites that otherwise showed with
     mis-cropped backgrounds or leftover shadows.
+
+    `dwell_seconds` > 0 (album use) repeats the whole frame sequence until it
+    covers that long. The panel plays exactly ONE pass through a GIF's frames
+    and then advances the carousel — it ignores both the header's interval
+    time-sign and the GIF's own loop count — so physically repeating the frames
+    is the only way to make an animated slide honour the album interval.
     """
     import io
 
@@ -467,7 +557,10 @@ def _prepare_gif(
             union = (0, 0, raw_frames[0].width, raw_frames[0].height)
         side = max(union[2] - union[0], union[3] - union[1], 1)
         frames = [
-            _fit_rgb(f, size, background, True, crop_box=union, square_side=side)
+            _apply_gamma(
+                _fit_rgb(f, size, background, True, crop_box=union, square_side=side),
+                gamma,
+            )
             for f in raw_frames
         ]
 
@@ -476,18 +569,37 @@ def _prepare_gif(
 
     import io
 
-    buf = io.BytesIO()
-    frames[0].save(
-        buf,
-        format="GIF",
-        save_all=True,
-        optimize=True,
-        append_images=frames[1:],
-        loop=0,
-        duration=durations,
-        disposal=2,
-    )
-    return buf.getvalue()
+    def _encode(frames_, durations_) -> bytes:
+        buf = io.BytesIO()
+        frames_[0].save(
+            buf,
+            format="GIF",
+            save_all=True,
+            optimize=True,
+            append_images=frames_[1:],
+            loop=0,
+            duration=durations_,
+            disposal=2,
+        )
+        return buf.getvalue()
+
+    encoded = _encode(frames, durations)
+    if dwell_seconds <= 0:
+        return encoded
+
+    loop_ms = sum(durations) or 1
+    # Repeat whole loops only — a partial pass would cut the animation off
+    # mid-motion. Round to the nearest loop so a 3.5s animation on a 5s
+    # interval stays at one pass instead of doubling to 7s.
+    repeats = max(1, round(dwell_seconds * 1000 / loop_ms))
+    # ...but never past the per-asset size ceiling, or a long animation on a long
+    # interval would balloon into an asset big enough to push the album out of the
+    # panel's storage — which silently drops slides (the exact failure this whole
+    # path exists to avoid). Size scales ~linearly with the repeat count.
+    repeats = min(repeats, max(1, MAX_ALBUM_ASSET_BYTES // max(1, len(encoded))))
+    if repeats <= 1:
+        return encoded
+    return _encode(frames * repeats, durations * repeats)
 
 
 # 16-wide x 32-tall glyph cell (matches the panel's 32px height). The separator

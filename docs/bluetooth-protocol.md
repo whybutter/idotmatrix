@@ -256,6 +256,12 @@ enabled) or `18` bytes (disabled). `[Toon]`.
 - After each 4K block, the device sends a notification `05 00 01 00 01` when ready for the next; on
   completion it sends `05 00 01 00 03`. Simplest robust approach per `[8none1]`: just `sleep(1)`
   between blocks. Max BLE payload chunk 4 kB. `[8none1]` readme.
+- **The ack echoes the payload-type byte.** The notification is `05 00 <type> 00 <01|03>`, where
+  `<type>` is header byte 2 of the block that was sent — `01` for a GIF/animation asset, `02` for a
+  raw-pixel still asset. So a still asset finishes with `05 00 02 00 03`, *not* `05 00 01 00 03`.
+  Gate each asset on the marker derived from the block you actually sent; hardcoding the GIF marker
+  makes every still upload sit out its full timeout. Measured on hardware (IDM-C8A2BC, fw as of
+  2026-08).
 - The device tolerates only a limited frame count; `[Toon]` caps GIFs to **64 frames** and
   ~2000 ms total, re-timing / dropping intermediate frames, and forces PIL `optimize=True`
   (disabling optimize breaks the transfer). `[Toon]` gif.py.
@@ -532,6 +538,47 @@ Draw specific pixels in a chosen color. **The header differs between repos** —
 - Image rhythm on: `06 00 00 02 <value1> 01`; stop: `06 00 00 02 00 00` (shows a dancing stick
   figure that reacts when value changes). Raw rhythm streaming (`send_rhythm`) intentionally not
   implemented (device has its own onboard mic).
+
+---
+
+## 21f. Device-side albums (the stored-asset carousel)
+
+Verified on hardware (IDM-C8A2BC) — the panel stores "material" assets and rotates through them by
+itself. There is **no "play album" command**: storing the assets *is* the trigger.
+
+- **Wipe then re-flash.** The store is write-only (no per-slot delete), so replacing an album is
+  `delete-all` (§21b) followed by the new assets in order.
+- **Byte 15 of each asset header is the 0-based album slot index** (not `0xFF`).
+- **One asset at a time**, each gated on the previous asset's finish-ack (§11c). Measured: 8 large
+  animations, 304 KB / 80 blocks, all stored in 43 s with zero missed acks.
+
+### Two banks — stills and animations do not mix
+
+The panel keeps raw-pixel still assets (header type `0x02`) and GIF assets (`0x01`) in **separate
+banks**, and when both are non-empty the carousel plays **only the GIF bank**. The stills are
+accepted and finish-ack normally — they are simply never displayed. Confirmed in both orders
+(stills-then-GIFs and GIFs-then-stills); either type *alone* plays correctly.
+
+Practical consequence: send every album asset through the GIF agreement, encoding stills as
+single-frame GIFs. That makes playback independent of what an album happens to contain.
+
+### Slide dwell = the GIF's total frame duration
+
+The header's interval time-sign (bytes 13–14) does **not** drive the carousel for GIF assets. The
+panel plays exactly **one pass through the frames**, then advances. Measured:
+
+| encoding | dwell |
+|---|---|
+| 1 frame, 100 ms (PIL default) | **never displayed at all** |
+| 1 frame, 10 000 ms | 10 s |
+| 20 frames x 500 ms | 10 s |
+| 12-frame 3.6 s loop, `loop=0` | 3.5 s |
+| same, Netscape `loop=5` | 3.5 s — **loop count is ignored** |
+| same, frames repeated x3 (10.8 s) | 11 s |
+
+So a still must be encoded with `duration = interval`, or the carousel skips straight past it. To
+make an *animation* fill an interval you must physically repeat its frames (which multiplies the
+upload size); there is no cheap loop-count route.
 
 ---
 

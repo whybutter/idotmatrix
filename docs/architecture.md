@@ -62,3 +62,38 @@ bounding box, pads to a centered square (preserving aspect), composites onto an
 opaque background, then scales to the panel size. For GIFs a **single** bounding
 box is shared across all frames so motion is preserved (per-frame trimming would
 re-center each frame and destroy the animation).
+
+### Display gamma
+
+The panel's PWM is roughly **linear** in the byte value, but source images are
+sRGB-encoded. Sent through untouched, midtones land far too bright and everything
+looks washed out and desaturated. Fully saturated primaries (0/255) are unaffected,
+which is why a pure red heart looks right while a photo or a shaded sprite does not.
+
+`_apply_gamma` applies `out = 255 * (in/255) ** gamma` to every still and GIF frame.
+Measured on hardware with one source image (webcam, mean per-pixel max−min as
+"saturation"):
+
+| gamma | saturation | brightness |
+|---|---|---|
+| 1.0 (uncorrected) | 44 | 166 |
+| 1.6 | 47 | 155 |
+| **2.2 (default)** | **59** | **140** |
+| 2.8 | 70 | 130 |
+
+The source image measures 137 brightness, so 2.2 — the theoretically correct sRGB
+value — is also the best empirical match. It is exposed as the `gamma` integration
+option (1.0–3.0) for per-panel tuning.
+
+Note this corrects the *transfer curve* only. The panel's white point is separately
+blue-heavy (whites render slightly cyan); a per-channel white-balance gain would be
+the next refinement.
+
+### Album asset preparation
+
+Album slides take a different path from one-off uploads (`albums.SlideshowManager.play`):
+every asset is encoded as a **GIF** (stills as single-frame GIFs) because the panel
+will not carousel stills and animations together, and each is encoded to last the
+album's interval — a still gets `duration = interval`, an animation has its frame
+sequence repeated to the nearest whole loop — because the carousel advances after one
+pass through the frames. See `docs/bluetooth-protocol.md` §21f.

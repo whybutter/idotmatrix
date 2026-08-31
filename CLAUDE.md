@@ -43,9 +43,22 @@ These cost real debugging time. Don't "simplify" them away.
    flips entities to unavailable mid-use.
 3. **Device-side albums:** the persistent-asset header's last byte is the **0-based
    album index** (NOT `0xFF`); assets are sent one at a time, each gated on the
-   previous asset's finish-ack (`05 00 01 00 03`); there is **no "play album"
-   command** — storing the assets *is* the trigger, and the panel auto-carousels.
-   GIFs are multi-block and need a size-scaled finish-ack timeout.
+   previous asset's finish-ack; there is **no "play album" command** — storing the
+   assets *is* the trigger, and the panel auto-carousels. GIFs are multi-block and
+   need a size-scaled finish-ack timeout. Three things cost real hardware time to
+   find (all verified on the panel, see `docs/bluetooth-protocol.md` §21f):
+   - **The finish/ready ack echoes the payload type**: `05 00 <type> 00 <01|03>`,
+     where `<type>` is header byte 2 of the block sent (`01` GIF, `02` raw still).
+     Derive the marker from the block; a hardcoded `05 00 01 00 03` silently
+     times out on every still.
+   - **Stills and GIFs live in separate banks and don't mix** — with both
+     populated the carousel plays ONLY the GIF bank, and the stills are stored
+     but never shown. So albums send *everything* through `build_gif_upload`,
+     stills included (`light._prepare_still_as_gif`).
+   - **Slide dwell = the GIF's total frame duration**, not the header interval.
+     A still must therefore be encoded with `duration = interval`; left at PIL's
+     default ~100ms the carousel skips it entirely. The GIF loop count is ignored,
+     so making an animation fill an interval means physically repeating frames.
 4. **Cloud catalog** (`catalog.py`, source `heaton`): requests need an md5 `sign` +
    AES-256-CBC body (keys hard-coded, no login); categorised content needs
    **`label="ALL"`** (not `Product_`); and downloaded assets are an **obfuscated

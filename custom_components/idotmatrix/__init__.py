@@ -12,7 +12,9 @@ from homeassistant.core import HomeAssistant
 from .availability import IdotMatrixAvailability
 from .client import IdotMatrixClient
 from .const import (
+    CONF_GAMMA,
     CONF_PREFERRED_PROXY,
+    DEFAULT_GAMMA,
     DEFAULT_MIC_SENSITIVITY,
     DOMAIN,
     PROXY_AUTO,
@@ -48,6 +50,9 @@ class IdotMatrixData:
     client: IdotMatrixClient
     availability: IdotMatrixAvailability
     device_name: str
+    # Display gamma for this panel (see CONF_GAMMA). The entry reloads on an
+    # options change, so this is always the current value.
+    gamma: float = DEFAULT_GAMMA
     state: IdotMatrixState = field(default_factory=IdotMatrixState)
 
 
@@ -126,6 +131,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -
         client=client,
         availability=availability,
         device_name=entry.title,
+        gamma=entry.options.get(CONF_GAMMA, DEFAULT_GAMMA),
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))

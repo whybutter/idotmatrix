@@ -46,6 +46,10 @@ IMAGE_SUBCHUNK_MAX = 180
 # reasonable time instead of the connector retrying for ~30s+.
 CONNECT_MAX_ATTEMPTS = 3
 
+# Total album size above which the panel was measured to start silently dropping
+# stored assets (see save_album). 280 KB stored reliably; 300 KB did not.
+ALBUM_TOTAL_WARN_BYTES = 280 * 1024
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -202,14 +206,32 @@ class IdotMatrixClient:
         """Write a persistent on-device asset album: wipe, then flash each
         image's asset blocks in order. The device then carousels them itself
         (interval baked into each asset header) — no flash, survives HA
-        disconnects. block_lists come from protocol.build_asset_upload /
-        build_gif_upload (asset variant). No DIY-mode enable on this path."""
+        disconnects. block_lists come from protocol.build_gif_upload (asset
+        variant) — albums send stills through it too, as single-frame GIFs; see
+        light._prepare_still_as_gif. No DIY-mode enable on this path.
+
+        The gating is derived per asset from the block's own type byte, so this
+        still transports raw-pixel assets (protocol.build_asset_upload,
+        type 0x02) correctly if a caller ever mixes them in."""
         # The panel stores each asset then auto-carousels them — there is no
         # "commit"/"show album" command; storing IS the display trigger. But
         # assets must be sent STRICTLY one at a time, each gated on the previous
-        # asset's finish-ack (05 00 01 00 03) — sending them back-to-back makes
-        # the panel drop them (confirmed from the app's onFinishSend chaining).
-        block_finish = bytes.fromhex("0500010003")
+        # asset's finish-ack — sending them back-to-back makes the panel drop
+        # them (confirmed from the app's onFinishSend chaining).
+        total_bytes = sum(len(b) for blocks in block_lists for b in blocks)
+        if total_bytes > ALBUM_TOTAL_WARN_BYTES:
+            # Measured: ~280 KB of album content stores fine, ~300 KB starts
+            # silently dropping assets — they finish-ack normally but never
+            # appear in the carousel. Warn rather than refuse; the exact ceiling
+            # is firmware/model dependent and this is only an observed threshold.
+            _LOGGER.warning(
+                "Album is %.0f KB across %d assets, above the ~%.0f KB the panel "
+                "was measured to hold — the panel may silently drop slides. "
+                "Use fewer or shorter animations if slides go missing.",
+                total_bytes / 1024,
+                len(block_lists),
+                ALBUM_TOTAL_WARN_BYTES / 1024,
+            )
         async with self._lock:
             self._cancel_idle_timer()
             try:
@@ -220,19 +242,38 @@ class IdotMatrixClient:
                 while not self._notifications.empty():
                     self._notifications.get_nowait()
                 for n, blocks in enumerate(block_lists, 1):
+                    # The panel's acks ECHO the asset's payload-type byte
+                    # (header[2]): a GIF asset (0x01) acks 05 00 01 00 0x, a raw
+                    # still asset (0x02) acks 05 00 02 00 0x. Deriving the marker
+                    # from the block we actually sent is what makes the gating
+                    # work for every asset type — hardcoding the GIF marker made
+                    # still assets burn their whole timeout on every upload.
+                    asset_type = blocks[0][2]
+                    ready = bytes([0x05, 0x00, asset_type, 0x00, 0x01])
+                    finish = bytes([0x05, 0x00, asset_type, 0x00, 0x03])
                     for j, block in enumerate(blocks):
                         await self._write_block(client, block, sub)
                         # Between 4K blocks the panel signals readiness on fa03.
-                        # Use the loose wait (any notification) that the working
-                        # transient image/GIF path uses — a strict marker match
-                        # can stall multi-block GIF assets.
+                        # Match the marker strictly: accepting *any* notification
+                        # lets an unrelated frame (device-info, a command ack)
+                        # satisfy one block's wait, desyncing the queue so a later
+                        # block consumes the previous block's ack and the transfer
+                        # runs ahead of the panel.
                         if j < len(blocks) - 1:
-                            await self._wait_for_block_ack()
-                    # Gate on this asset's finish (05 00 01 00 03) before the next
-                    # asset. A big GIF is many blocks and the panel needs longer
-                    # to store + CRC-check it, so scale the timeout with size.
-                    finish_timeout = min(30.0, 4.0 + 1.5 * len(blocks))
-                    got = await self._wait_for_ack(block_finish, timeout=finish_timeout)
+                            if not await self._wait_for_ack(ready, timeout=8.0):
+                                _LOGGER.warning(
+                                    "Album asset %d/%d: no ready-ack after block "
+                                    "%d/%d — continuing, the panel may drop it",
+                                    n,
+                                    len(block_lists),
+                                    j + 1,
+                                    len(blocks),
+                                )
+                    # Gate on this asset's finish before starting the next. A big
+                    # GIF is many blocks and the panel needs longer to store +
+                    # CRC-check it, so scale the timeout with size.
+                    finish_timeout = min(30.0, 5.0 + 1.5 * len(blocks))
+                    got = await self._wait_for_ack(finish, timeout=finish_timeout)
                     if got:
                         _LOGGER.debug(
                             "Album asset %d/%d stored", n, len(block_lists)

@@ -34,9 +34,18 @@ def build_gif_upload(
     gif_type: int = GIF_TYPE_NO_TIME_SIGNATURE,
     time_key: int = 12,
 ) -> list[bytes]:
-    """Build GIF upload blocks. For a persistent carousel asset, pass
-    gif_type=0xFF and a time_key (interval); default keeps the transient
-    single-GIF behavior (type 12, no time-sign)."""
+    """Build GIF upload blocks.
+
+    `gif_type` is header byte[15] and is overloaded:
+
+    - 12 (default) — transient single-GIF playback, no time signature.
+    - 0..N — a PERSISTENT album asset, the value being its 0-based album slot
+      index. Pass a `time_key` alongside it for the carousel interval. It is NOT
+      0xFF; using a fixed 0xFF makes the panel store nothing.
+
+    Album assets always take this path, stills included (encoded as
+    single-frame GIFs) — see albums.SlideshowManager.play for why.
+    """
     if not gif_bytes:
         raise ValueError("gif_bytes cannot be empty")
 

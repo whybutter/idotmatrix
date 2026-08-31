@@ -1,7 +1,11 @@
-"""Albums = HA-side slideshow. The panel's native asset carousel isn't
-reverse-engineered, so instead we group gallery items into an album and rotate
-them to the panel on a timer (re-uploading each in turn). Same effect, driven
-entirely from HA.
+"""Albums = DEVICE-side slideshow. Gallery items are grouped into an album and
+flashed into the panel's persistent asset memory in one go; the panel then
+carousels them itself. No HA timer, no re-upload flash, and it survives HA
+restarts and BLE disconnects.
+
+Every asset is uploaded through the GIF agreement (stills as single-frame GIFs)
+and encoded to last the album's interval — see SlideshowManager.play and
+light._prepare_still_as_gif for the hardware reasons behind both.
 """
 from __future__ import annotations
 
@@ -17,7 +21,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN
+from .const import CONF_GAMMA, DEFAULT_GAMMA, DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,11 +92,13 @@ class SlideshowManager:
 
     async def play(self, entity_id: str, album: dict, gallery_items: dict) -> None:
         from . import protocol
-        from .light import _prepare_gif, _prepare_pixels
+        from .light import _prepare_gif, _prepare_still_as_gif
 
         entry_id, client = self._client_for(entity_id)
         if client is None:
             raise ValueError("device not found for entity")
+        entry = self._hass.config_entries.async_get_entry(entry_id)
+        gamma = entry.options.get(CONF_GAMMA, DEFAULT_GAMMA) if entry else DEFAULT_GAMMA
         items = [
             gallery_items[i] for i in album.get("item_ids", []) if i in gallery_items
         ]
@@ -101,21 +107,31 @@ class SlideshowManager:
         time_key = protocol.seconds_to_time_key(
             int(album.get("interval", DEFAULT_INTERVAL))
         )
+        # The panel only supports a few discrete intervals, so the dwell an asset
+        # is encoded for has to be the one the device actually rounded to. The
+        # carousel advances after ONE pass through a GIF's frames (it ignores
+        # both the header time-sign and the GIF loop count), so this dwell is what
+        # gives every slide — still or animated — the interval the user asked for.
+        dwell = protocol.convert_time(time_key)
+        # EVERY album asset goes through the GIF agreement — stills as
+        # single-frame GIFs. The panel keeps stills (asset type 0x02) and
+        # animations (0x01) in separate banks and carousels only the GIF bank
+        # when both are populated, so a mixed album silently dropped its stills.
+        # See _prepare_still_as_gif for the hardware evidence.
         block_lists: list[list[bytes]] = []
         for index, item in enumerate(items):
             raw = base64.b64decode(item["image_data"])
             size = int(item.get("size", 32))
             if item.get("is_gif"):
-                gif = await self._hass.async_add_executor_job(_prepare_gif, raw, size)
-                # byte[15] = album index (0-based), NOT 0xFF.
-                block_lists.append(protocol.build_gif_upload(gif, index, time_key))
+                gif = await self._hass.async_add_executor_job(
+                    _prepare_gif, raw, size, (0, 0, 0), gamma, dwell
+                )
             else:
-                pixels = await self._hass.async_add_executor_job(
-                    _prepare_pixels, raw, size
+                gif = await self._hass.async_add_executor_job(
+                    _prepare_still_as_gif, raw, size, dwell, (0, 0, 0), gamma
                 )
-                block_lists.append(
-                    protocol.build_asset_upload(pixels, time_key, index)
-                )
+            # byte[15] = album slot index (0-based), NOT 0xFF.
+            block_lists.append(protocol.build_gif_upload(gif, index, time_key))
         await client.save_album(block_lists)
         self._playing[entry_id] = album["id"]
 

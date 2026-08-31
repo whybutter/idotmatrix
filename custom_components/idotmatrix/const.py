@@ -7,6 +7,23 @@ CONF_PREFERRED_PROXY = "preferred_proxy"
 # Sentinel option value meaning "let HA pick the best proxy by signal".
 PROXY_AUTO = "auto"
 
+# Display gamma. The panel's PWM is ~linear in the byte value, but source images
+# are sRGB-encoded, so sending them through untouched makes midtones far too
+# bright — colours look washed out and desaturated. Fully saturated primaries
+# (0/255) are unaffected, which is why a pure red renders fine while a photo or
+# a shaded sprite does not. Applying out = 255*(in/255)**gamma linearises it.
+#
+# Measured on hardware (32x32 panel, webcam, same source image):
+#   gamma 1.0  saturation 44  brightness 166   (uncorrected — washed out)
+#   gamma 1.6  saturation 47  brightness 155
+#   gamma 2.2  saturation 59  brightness 140   <- source image is 137
+#   gamma 2.8  saturation 70  brightness 130   (rich, slightly dark)
+# 2.2 is both the theoretically correct sRGB value and the best brightness match.
+CONF_GAMMA = "gamma"
+DEFAULT_GAMMA = 2.2
+MIN_GAMMA = 1.0
+MAX_GAMMA = 3.0
+
 # BLE identifiers, from the community reverse engineering of the official app
 # (derkalle4/python3-idotmatrix-library and its maintained forks).
 LOCAL_NAME_PREFIX = "IDM-"
@@ -157,3 +174,12 @@ DEFAULT_PANEL_SIZE = 32
 # Frame budget for GIF uploads (too many frames destabilize the transfer).
 MAX_GIF_FRAMES = 64
 DEFAULT_GIF_FRAME_MS = 200
+
+# Size ceiling for ONE album asset, in bytes. Album animations get their frame
+# sequence repeated to fill the carousel interval, which multiplies their size —
+# and the panel's asset store is finite: measured on hardware, ~280 KB of album
+# content stores fine while ~300 KB starts silently dropping assets (they still
+# finish-ack, they just never appear). Capping each asset keeps a normal album
+# inside that budget; an animation that would exceed it simply gets fewer repeats
+# and plays a shorter slide. Only ~4% of the catalog's animations hit this.
+MAX_ALBUM_ASSET_BYTES = 64 * 1024

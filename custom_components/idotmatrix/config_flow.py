@@ -18,7 +18,16 @@ from homeassistant.config_entries import (
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
 
-from .const import CONF_PREFERRED_PROXY, DOMAIN, LOCAL_NAME_PREFIX, PROXY_AUTO
+from .const import (
+    CONF_GAMMA,
+    CONF_PREFERRED_PROXY,
+    DEFAULT_GAMMA,
+    DOMAIN,
+    LOCAL_NAME_PREFIX,
+    MAX_GAMMA,
+    MIN_GAMMA,
+    PROXY_AUTO,
+)
 
 
 class IdotMatrixConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -89,11 +98,15 @@ class IdotMatrixConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class IdotMatrixOptionsFlow(OptionsFlow):
-    """Let the user force a specific BLE proxy for this panel.
+    """Per-panel options: which BLE proxy to use, and the display gamma.
 
     HA normally picks the proxy with the strongest signal, but the strongest
     one can be unreliable. This lists the proxies currently seeing the panel so
     a specific (more stable) one can be pinned.
+
+    Gamma linearises sRGB source images for the panel's ~linear PWM; 2.2 is the
+    correct sRGB value and the measured best match. Lower it toward 1.0 for the
+    old (brighter, washed-out) look, or raise it for richer, darker colour.
     """
 
     async def async_step_init(self, user_input: dict | None = None):
@@ -113,9 +126,15 @@ class IdotMatrixOptionsFlow(OptionsFlow):
         if current not in options:
             options[current] = current
 
+        gamma = self.config_entry.options.get(CONF_GAMMA, DEFAULT_GAMMA)
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PREFERRED_PROXY, default=current): vol.In(options)}
+                {
+                    vol.Required(CONF_PREFERRED_PROXY, default=current): vol.In(options),
+                    vol.Required(CONF_GAMMA, default=gamma): vol.All(
+                        vol.Coerce(float), vol.Range(min=MIN_GAMMA, max=MAX_GAMMA)
+                    ),
+                }
             ),
         )
