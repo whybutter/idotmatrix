@@ -84,6 +84,8 @@ SERVICE_SHOW_EFFECT = "show_effect"
 SERVICE_CHRONOGRAPH = "chronograph"
 SERVICE_COUNTDOWN = "countdown"
 SERVICE_SCOREBOARD = "scoreboard"
+SERVICE_SET_SCHEDULE = "set_schedule"
+SERVICE_CLEAR_SCHEDULE = "clear_schedule"
 
 ATTR_FILE_PATH = "file_path"
 ATTR_IMAGE_DATA = "image_data"

@@ -56,8 +56,10 @@ from .const import (
     SERVICE_COUNTDOWN,
     SERVICE_FULLSCREEN_COLOR,
     SERVICE_MIC_RHYTHM,
+    SERVICE_CLEAR_SCHEDULE,
     SERVICE_SCOREBOARD,
     SERVICE_SEND_TEXT,
+    SERVICE_SET_SCHEDULE,
     SERVICE_SET_ECO,
     SERVICE_SHOW_CLOCK,
     SERVICE_SHOW_EFFECT,
@@ -247,6 +249,35 @@ async def async_setup_entry(
         },
         "async_set_eco",
     )
+    _schedule_activity = vol.Schema(
+        {
+            vol.Optional("days"): vol.All(
+                cv.ensure_list,
+                [vol.In(("mon", "tue", "wed", "thu", "fri", "sat", "sun"))],
+            ),
+            vol.Required("start"): cv.time,
+            vol.Required("end"): cv.time,
+            vol.Optional(ATTR_FILE_PATH): cv.string,
+            vol.Optional(ATTR_IMAGE_DATA): cv.string,
+            vol.Optional("is_gif", default=False): cv.boolean,
+        }
+    )
+    platform.async_register_entity_service(
+        SERVICE_SET_SCHEDULE,
+        {
+            vol.Optional("sound", default=False): cv.boolean,
+            vol.Optional(ATTR_SIZE, default=DEFAULT_PANEL_SIZE): vol.All(
+                vol.Coerce(int), vol.In(PANEL_SIZES)
+            ),
+            vol.Required("activities"): vol.All(
+                cv.ensure_list, [_schedule_activity], vol.Length(min=1, max=12)
+            ),
+        },
+        "async_set_schedule",
+    )
+    platform.async_register_entity_service(
+        SERVICE_CLEAR_SCHEDULE, {}, "async_clear_schedule"
+    )
 
 
 class IdotMatrixLight(IdotMatrixEntity, LightEntity):
@@ -312,6 +343,47 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
             _prepare_gif, raw, size, (0, 0, 0), self._correction
         )
         await self._run(self._client.upload_gif(gif_bytes))
+
+    async def async_set_schedule(
+        self, activities: list[dict], sound: bool, size: int
+    ) -> None:
+        """Program timed content: each activity shows an image/GIF during a
+        daily HH:MM-HH:MM window on the selected weekdays. Both stills and GIFs
+        are encoded as GIF (the proven album path) and sent as schedule
+        activities. SPECULATIVE feature — see protocol/schedule.py."""
+        from . import protocol
+
+        packets: list[bytes] = []
+        for index, act in enumerate(activities):
+            raw = await self._resolve_source(
+                act.get(ATTR_FILE_PATH), act.get(ATTR_IMAGE_DATA)
+            )
+            if act.get("is_gif"):
+                payload = await self.hass.async_add_executor_job(
+                    _prepare_gif, raw, size, (0, 0, 0), self._correction
+                )
+            else:
+                # Still → single-frame GIF (same reliable path albums use).
+                payload = await self.hass.async_add_executor_job(
+                    _prepare_still_as_gif, raw, size, 5, (0, 0, 0), self._correction
+                )
+            start, end = act["start"], act["end"]
+            packets.append(
+                protocol.build_schedule_activity(
+                    index,
+                    protocol.weekday_flags(act.get("days")),
+                    start.hour,
+                    start.minute,
+                    end.hour,
+                    end.minute,
+                    protocol.CONTENT_GIF,
+                    payload,
+                )
+            )
+        await self._run(self._client.set_schedule(packets, sound))
+
+    async def async_clear_schedule(self) -> None:
+        await self._run(self._client.clear_schedule())
 
     async def _resolve_source(
         self, file_path: str | None, image_data: str | None

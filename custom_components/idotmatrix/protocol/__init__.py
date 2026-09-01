@@ -31,14 +31,28 @@ from .commands import (
 )
 from .gif import build_gif_upload
 from .image import build_asset_upload, build_image_upload
+from .schedule import (
+    CONTENT_GIF,
+    CONTENT_IMAGE,
+    CONTENT_TEXT,
+    build_schedule_activity,
+    program_switch,
+    weekday_flags,
+)
 from .text import SEPARATOR as TEXT_SEPARATOR, build_text_packet
 
 __all__ = [
     "TEXT_SEPARATOR",
+    "CONTENT_GIF",
+    "CONTENT_IMAGE",
+    "CONTENT_TEXT",
     "brightness",
     "build_asset_upload",
     "build_gif_upload",
     "build_image_upload",
+    "build_schedule_activity",
+    "program_switch",
+    "weekday_flags",
     "delete_all_assets",
     "seconds_to_time_key",
     "build_text_packet",

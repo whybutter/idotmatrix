@@ -351,3 +351,49 @@ scoreboard:
           min: 0
           max: 999
           mode: box
+
+set_schedule:
+  name: Set schedule
+  description: >-
+    Program timed content (Programs/Schedule). Each activity shows an image or
+    GIF during a daily time window on selected weekdays. SPECULATIVE — the
+    on-wire format is from the piggei/IDotMatrix-ESP32-Emulator project and is
+    not yet confirmed on real hardware.
+  target:
+    entity:
+      integration: idotmatrix
+      domain: light
+  fields:
+    sound:
+      name: Sound
+      description: Enable the schedule's sound flag.
+      default: false
+      selector:
+        boolean:
+    size:
+      name: Panel size
+      description: Panel resolution the media is rendered for.
+      default: 32
+      selector:
+        select:
+          options: ["16", "32", "64"]
+    activities:
+      name: Activities
+      description: >-
+        List of activities. Each item: days (list of mon..sun; omit for
+        one-shot), start ("HH:MM"), end ("HH:MM"), and one of file_path /
+        image_data, plus optional is_gif (true for animated GIFs).
+      required: true
+      example: >-
+        [{"days": ["mon","wed","fri"], "start": "08:00", "end": "09:30",
+        "file_path": "/config/www/wake.png"}]
+      selector:
+        object:
+
+clear_schedule:
+  name: Clear schedule
+  description: Disable the on-device program/schedule.
+  target:
+    entity:
+      integration: idotmatrix
+      domain: light

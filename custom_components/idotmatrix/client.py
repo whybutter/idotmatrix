@@ -301,6 +301,59 @@ class IdotMatrixClient:
         """Wipe the device asset album (stops the carousel)."""
         await self._write(protocol.delete_all_assets())
 
+    async def set_schedule(
+        self, activities: list[bytes], sound: bool = False
+    ) -> None:
+        """Upload a Programs/Schedule (SPECULATIVE — layout from the emulator,
+        not yet confirmed on our hardware). Enable the program, then send each
+        activity packet one at a time, each gated on its completion ack
+        05 00 05 80 03 (a 01 makes the app/device error and stop, same as the
+        album finish-ack). No explicit end-of-list command — the device commits
+        after a short idle."""
+        activity_finish = bytes.fromhex("0500058003")
+        async with self._lock:
+            self._cancel_idle_timer()
+            try:
+                client = await self._ensure_connected()
+                sub = self._image_subchunk_size(client)
+                await self._write_paced(
+                    client, protocol.program_switch(True, sound), sub
+                )
+                await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+                while not self._notifications.empty():
+                    self._notifications.get_nowait()
+                for n, activity in enumerate(activities, 1):
+                    # One logical packet (header+payload); the panel accumulates
+                    # to the declared length then acks once. Write it sub-chunked
+                    # + paced like a single block, then gate on the completion ack.
+                    await self._write_block(client, activity, sub)
+                    blocks = max(1, len(activity) // 4096 + 1)
+                    got = await self._wait_for_ack(
+                        activity_finish, timeout=min(30.0, 4.0 + 1.5 * blocks)
+                    )
+                    if got:
+                        _LOGGER.debug(
+                            "Schedule activity %d/%d stored", n, len(activities)
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "Schedule activity %d/%d: no completion ack — the panel "
+                            "may have rejected it",
+                            n,
+                            len(activities),
+                        )
+                    await asyncio.sleep(COMMAND_SETTLE_SECONDS)
+            except (BleakError, TimeoutError) as err:
+                raise IdotMatrixError(
+                    f"Schedule upload to {self._address} failed: {err}"
+                ) from err
+            finally:
+                self._schedule_idle_disconnect()
+
+    async def clear_schedule(self) -> None:
+        """Disable the on-device program/schedule."""
+        await self._write(protocol.program_switch(False, False))
+
     async def _write_paced(self, client, data: bytes, sub: int) -> None:
         for i in range(0, len(data), sub):
             await client.write_gatt_char(
