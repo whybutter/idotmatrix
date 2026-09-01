@@ -15,6 +15,7 @@ import type {
   IDotDevice,
 } from "./types";
 import { Modal } from "./Modal";
+import { PixelPreview } from "./PixelPreview";
 import { useBusyAction } from "./useBusyAction";
 import { IconImage, IconSpinner } from "./icons";
 
@@ -262,7 +263,7 @@ function ActionSheet({
           size,
         }
       );
-      notify(`Enviado: ${item.name}`);
+      notify(`Sent: ${item.name}`);
     });
 
   const onSave = () =>
@@ -282,8 +283,21 @@ function ActionSheet({
 
   return (
     <Modal title={item.name} onClose={onClose}>
-      <div className="idot-sheet-preview">
-        <img src={catalogImgUrl(source, item.ref)} alt={item.name} />
+      <div className="idot-preview-pair">
+        <figure>
+          <div className="idot-sheet-preview">
+            <img src={catalogImgUrl(source, item.ref)} alt={item.name} />
+          </div>
+          <figcaption>Original</figcaption>
+        </figure>
+        <figure>
+          <PixelPreview
+            src={catalogImgUrl(source, item.ref)}
+            size={size}
+            display={140}
+          />
+          <figcaption>On the panel ({size}x{size})</figcaption>
+        </figure>
       </div>
 
       <div className="idot-field">

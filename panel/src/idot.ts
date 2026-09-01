@@ -152,9 +152,15 @@ export async function galleryAdd(
   return res.item;
 }
 
-export async function galleryDelete(hass: Hass, id: string): Promise<void> {
-  // item_id, not id — "id" is the WebSocket message identifier HA assigns.
-  await hass.callWS({ type: "idotmatrix/gallery/delete", item_id: id });
+/** Delete one or many gallery items. The backend removes them in a single
+ *  store write, so deleting a selection costs one round trip, not N. */
+export async function galleryDelete(hass: Hass, ids: string[]): Promise<number> {
+  // item_ids, not id — "id" is the WebSocket message identifier HA assigns.
+  const res = await hass.callWS<{ removed: number }>({
+    type: "idotmatrix/gallery/delete",
+    item_ids: ids,
+  });
+  return res?.removed ?? ids.length;
 }
 
 /** Send a stored gallery item to the panel via the existing upload service. */

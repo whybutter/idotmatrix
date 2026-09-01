@@ -10,6 +10,7 @@ import {
 } from "./idot";
 import type { GalleryItem, IDotDevice } from "./types";
 import { Modal } from "./Modal";
+import { PixelPreview } from "./PixelPreview";
 import { useBusyAction } from "./useBusyAction";
 import { IconAlert, IconCheck, IconImage, IconSpinner } from "./icons";
 
@@ -22,7 +23,11 @@ export function Gallery({ device, notify }: Props) {
   const hass = useHass();
   const [items, setItems] = useState<GalleryItem[] | null>(null);
   const [showAdd, setShowAdd] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<GalleryItem | null>(null);
+  // Items queued for deletion. One entry = the single-item trash button; many =
+  // a multi-select batch. Both go through the same confirm + bulk delete.
+  const [confirmDelete, setConfirmDelete] = useState<GalleryItem[] | null>(null);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     try {
@@ -39,8 +44,29 @@ export function Gallery({ device, notify }: Props) {
     refresh();
   }, [refresh]);
 
-  const onDeleted = (id: string) =>
-    setItems((prev) => (prev ? prev.filter((i) => i.id !== id) : prev));
+  const onDeleted = (ids: string[]) => {
+    const gone = new Set(ids);
+    setItems((prev) => (prev ? prev.filter((i) => !gone.has(i.id)) : prev));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+  };
+
+  const toggle = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const exitSelect = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  const allSelected = !!items && items.length > 0 && selected.size === items.length;
 
   return (
     <div className="idot-card idot-section">
@@ -51,10 +77,45 @@ export function Gallery({ device, notify }: Props) {
           </div>
           <div className="idot-section-title">Gallery</div>
         </div>
-        <button className="idot-add-btn" onClick={() => setShowAdd(true)}>
-          + Add
-        </button>
+        <div className="idot-gallery-head-actions">
+          {!!items?.length && (
+            <button
+              className={"idot-select-btn" + (selecting ? " active" : "")}
+              onClick={() => (selecting ? exitSelect() : setSelecting(true))}
+            >
+              {selecting ? "Done" : "Select"}
+            </button>
+          )}
+          <button className="idot-add-btn" onClick={() => setShowAdd(true)}>
+            + Add
+          </button>
+        </div>
       </div>
+
+      {selecting && !!items?.length && (
+        <div className="idot-selectbar">
+          <label className="idot-selectall">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={() =>
+                setSelected(allSelected ? new Set() : new Set(items.map((i) => i.id)))
+              }
+            />
+            <span>{allSelected ? "Clear all" : "Select all"}</span>
+          </label>
+          <span className="idot-selectcount">{selected.size} selected</span>
+          <button
+            className="idot-btn idot-btn-danger idot-selectdel"
+            disabled={selected.size === 0}
+            onClick={() =>
+              setConfirmDelete(items.filter((i) => selected.has(i.id)))
+            }
+          >
+            Delete
+          </button>
+        </div>
+      )}
 
       {items === null ? (
         <div className="idot-gallery-loading">
@@ -73,7 +134,10 @@ export function Gallery({ device, notify }: Props) {
               item={it}
               device={device}
               notify={notify}
-              onRequestDelete={() => setConfirmDelete(it)}
+              selecting={selecting}
+              selected={selected.has(it.id)}
+              onToggle={() => toggle(it.id)}
+              onRequestDelete={() => setConfirmDelete([it])}
             />
           ))}
         </div>
@@ -92,11 +156,11 @@ export function Gallery({ device, notify }: Props) {
 
       {confirmDelete && (
         <DeleteModal
-          item={confirmDelete}
+          items={confirmDelete}
           notify={notify}
           onClose={() => setConfirmDelete(null)}
-          onDeleted={(id) => {
-            onDeleted(id);
+          onDeleted={(ids) => {
+            onDeleted(ids);
             setConfirmDelete(null);
           }}
         />
@@ -110,11 +174,17 @@ function GalleryThumb({
   item,
   device,
   notify,
+  selecting,
+  selected,
+  onToggle,
   onRequestDelete,
 }: {
   item: GalleryItem;
   device: IDotDevice;
   notify: (msg: string, isError?: boolean) => void;
+  selecting: boolean;
+  selected: boolean;
+  onToggle: () => void;
   onRequestDelete: () => void;
 }) {
   const hass = useHass();
@@ -122,16 +192,23 @@ function GalleryThumb({
 
   const send = () =>
     run(() => gallerySend(hass, device.lightEntityId, item)).then((ok) => {
-      if (ok) notify(`Enviado: ${item.name}`);
+      if (ok) notify(`Sent: ${item.name}`);
     });
 
   return (
     <div
-      className={"idot-thumb" + (busy ? " busy" : "")}
-      onClick={send}
+      className={
+        "idot-thumb" +
+        (busy ? " busy" : "") +
+        (selecting ? " selecting" : "") +
+        (selected ? " selected" : "")
+      }
+      // In selection mode a tap picks the item instead of sending it, so you
+      // can never fire an upload while curating the gallery.
+      onClick={selecting ? onToggle : send}
       role="button"
       tabIndex={0}
-      title={`Enviar "${item.name}" al panel`}
+      title={selecting ? item.name : `Send "${item.name}" to the panel`}
     >
       <div className="idot-thumb-img-wrap">
         <img className="idot-thumb-img" src={dataUrl(item)} alt={item.name} />
@@ -147,16 +224,22 @@ function GalleryThumb({
           </div>
         )}
 
-        <button
-          className="idot-thumb-del"
-          title="Delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRequestDelete();
-          }}
-        >
-          <TrashIcon />
-        </button>
+        {selecting ? (
+          <span className={"idot-thumb-check" + (selected ? " on" : "")}>
+            {selected && <CheckIcon />}
+          </span>
+        ) : (
+          <button
+            className="idot-thumb-del"
+            title="Delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRequestDelete();
+            }}
+          >
+            <TrashIcon />
+          </button>
+        )}
       </div>
       <div className="idot-thumb-name">{item.name}</div>
     </div>
@@ -219,7 +302,22 @@ function AddModal({
             onChange={(e) => pick(e.target.files?.[0] ?? null)}
           />
         </label>
-        {previewUrl && <img className="idot-preview-img" src={previewUrl} alt="preview" />}
+        {previewUrl && (
+          <div className="idot-preview-pair">
+            <figure>
+              <img className="idot-preview-img" src={previewUrl} alt="preview" />
+              <figcaption>Original</figcaption>
+            </figure>
+            <figure>
+              <PixelPreview
+                src={previewUrl}
+                size={size}
+                display={140}
+              />
+              <figcaption>On the panel ({size}x{size})</figcaption>
+            </figure>
+          </div>
+        )}
       </div>
 
       <div className="idot-field">
@@ -266,41 +364,63 @@ function AddModal({
 
 /* ---------- Delete confirmation ---------- */
 function DeleteModal({
-  item,
+  items,
   notify,
   onClose,
   onDeleted,
 }: {
-  item: GalleryItem;
+  items: GalleryItem[];
   notify: (msg: string, isError?: boolean) => void;
   onClose: () => void;
-  onDeleted: (id: string) => void;
+  onDeleted: (ids: string[]) => void;
 }) {
   const hass = useHass();
   const { busy, run } = useBusyAction((m) => notify("Delete failed: " + m, true));
+  const ids = items.map((i) => i.id);
+  const many = items.length > 1;
 
   const del = () =>
     run(async () => {
-      await galleryDelete(hass, item.id);
-      notify("Deleted");
+      // One round trip and one store write for the whole selection.
+      await galleryDelete(hass, ids);
+      notify(many ? `Deleted ${items.length} images` : "Deleted");
     }).then((ok) => {
-      if (ok) onDeleted(item.id);
+      if (ok) onDeleted(ids);
     });
 
   return (
-    <Modal title="Delete image" onClose={onClose}>
+    <Modal title={many ? `Delete ${items.length} images` : "Delete image"} onClose={onClose}>
       <p className="idot-hint" style={{ marginBottom: 18 }}>
-        Delete <strong>{item.name}</strong> from the gallery? This cannot be undone.
+        {many ? (
+          <>
+            Delete <strong>{items.length} images</strong> from the gallery? This cannot
+            be undone.
+          </>
+        ) : (
+          <>
+            Delete <strong>{items[0].name}</strong> from the gallery? This cannot be
+            undone.
+          </>
+        )}
       </p>
       <div className="idot-modal-actions">
         <button className="idot-btn-secondary" onClick={onClose} disabled={busy}>
-          Cancelar
+          Cancel
         </button>
         <button className="idot-btn idot-btn-danger" onClick={del} disabled={busy}>
           {busy ? "Deleting…" : "Delete"}
         </button>
       </div>
     </Modal>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
   );
 }
 

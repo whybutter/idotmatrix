@@ -369,7 +369,7 @@ function DeleteModal({
       </p>
       <div className="idot-modal-actions">
         <button className="idot-btn-secondary" onClick={onClose} disabled={busy}>
-          Cancelar
+          Cancel
         </button>
         <button className="idot-btn idot-btn-danger" onClick={del} disabled={busy}>
           {busy ? "Deleting…" : "Delete"}
