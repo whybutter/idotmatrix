@@ -35,9 +35,12 @@ def speed(value: int) -> bytes:
 
 
 def diy_mode(enable: bool) -> bytes:
-    """Enter/exit DIY draw mode. Must be enabled before uploading pixel data
-    (from the app decompile via the maintained fork: modes 2/3 exist but are
-    unknown)."""
+    """Enter/exit DIY draw mode. Must be enabled before uploading pixel data.
+
+    Full mode set (the app's DiyImageFun enum, named by dallanwagz/idotmatrix-ha):
+    0=quit without saving, 1=enter and clear, 2=quit but keep showing the current
+    still, 3=enter without clearing. We use 0/1 today.
+    """
     return bytes([0x05, 0x00, 0x04, 0x01, 0x01 if enable else 0x00])
 
 
@@ -87,15 +90,26 @@ def clock(style: int, show_date: bool, hour24: bool, r: int, g: int, b: int) -> 
     return bytes([0x08, 0x00, 0x06, 0x01, flags, r % 256, g % 256, b % 256])
 
 
-def effect(style: int, colors: list[tuple[int, int, int]]) -> bytes:
-    """Built-in animated background. style 0-6; 2-7 RGB colors."""
+def effect(style: int, colors: list[tuple[int, int, int]], speed: int = 90) -> bytes:
+    """Built-in animated background ("MutilColor"). style 0-6; 2-7 RGB colors;
+    speed 0-100 (the app's lightning-bolt slider).
+
+    Frame per the app's MutilColorAgreement, hardware-confirmed on a 32x32 by
+    dallanwagz/idotmatrix-ha (device acks 05 00 03 02 01): a NORMAL little-endian
+    total length (7 + 3*n_colors) — the old "0x06 + n_colors" first byte copied
+    from the maintained fork was wrong — and full-range 0-255 RGB. Channel
+    value 1 is reserved by the firmware and remapped to 0, matching the app.
+    """
     if not 0 <= style <= 6:
         raise ValueError("effect style must be 0-6")
     if not 2 <= len(colors) <= 7:
         raise ValueError("effect needs 2-7 colors")
-    body = bytearray([0x06 + len(colors), 0x00, 0x03, 0x02, style % 256, 0x90, len(colors)])
-    for r, g, b in colors:
-        body += bytes([r % 256, g % 256, b % 256])
+    if not 0 <= speed <= 100:
+        raise ValueError("effect speed must be 0-100")
+    total = 7 + 3 * len(colors)
+    body = bytearray([total & 0xFF, (total >> 8) & 0xFF, 0x03, 0x02, style, speed, len(colors)])
+    for color in colors:
+        body += bytes(0 if v % 256 == 1 else v % 256 for v in color)
     return bytes(body)
 
 
@@ -199,6 +213,42 @@ def seconds_to_time_key(seconds: int) -> int:
     return 4  # 300s
 
 
+def enter_asset_view() -> bytes:
+    """Switch the panel to its stored-asset (album/carousel) view.
+
+    The app sends this on the Device Material tab (PatternFragment); it makes the
+    panel show and cycle whatever assets are stored, without re-uploading them.
+    Cross-confirmed by dallanwagz/idotmatrix-ha as the carousel-start command.
+    """
+    return bytes([0x04, 0x00, 0x0A, 0x01])
+
+
+def request_device_info() -> bytes:
+    """Query LED type / device info (BleProtocolN.getLedType). The panel answers
+    on fa03 with the same 09 00 01 80 ... frame it auto-pushes on connect."""
+    return bytes([0x04, 0x00, 0x01, 0x80])
+
+
+def rhythm_stop() -> bytes:
+    """Stop the phone-audio rhythm visualizer (BleProtocolN.sendStopMicRhythm).
+    Cross-confirmed by both the ESP32 emulator project and dallanwagz."""
+    return bytes([0x06, 0x00, 0x00, 0x02, 0x00, 0x00])
+
+
+# Streamed phone-audio spectrum frames: a constant 5-byte prefix followed by 16
+# column heights = 8 band magnitudes mirrored left-right (symmetric bars). Sent
+# raw at ~12 fps, no envelope/CRC. Wire-captured golden frame (dallanwagz):
+# 2100010202 0a05040202040202 0202040202 0405 0a from bands [a,5,4,2,2,4,2,2].
+RHYTHM_PREFIX = bytes([0x21, 0x00, 0x01, 0x02, 0x02])
+
+
+def rhythm_frame(bands: list[int]) -> bytes:
+    """One streamed spectrum frame from 8 band magnitudes (0-~31)."""
+    b = [max(0, min(255, int(v))) for v in bands][:8]
+    b += [0] * (8 - len(b))
+    return RHYTHM_PREFIX + bytes(b + b[::-1])
+
+
 def mic_rhythm(style: int, sensitivity: int) -> bytes:
     """On-device microphone reactive visualizer (BleProtocolN.sendMicCommand1).
     One frame carries both the style (mode index) and sensitivity (0-100);
@@ -210,6 +260,19 @@ def mic_rhythm(style: int, sensitivity: int) -> bytes:
     return bytes([0x06, 0x00, 0x0B, 0x80, style, sensitivity])
 
 
+# panel_type ("ledType") -> pixel dimensions, from the app's AppData.setLedType
+# (via dallanwagz/idotmatrix-ha). Marco's panel reports type 3 = 32x32.
+PANEL_TYPE_SIZES = {
+    1: (16, 16),
+    2: (8, 32),
+    3: (32, 32),
+    4: (64, 64),
+    6: (24, 48),
+    7: (16, 32),
+    11: (16, 64),
+}
+
+
 def parse_device_info(frame: bytes) -> dict | None:
     """Parse the panel's auto-pushed device-info notification.
 
@@ -219,7 +282,10 @@ def parse_device_info(frame: bytes) -> dict | None:
     """
     if len(frame) < 9 or frame[2] != 0x01 or frame[3] != 0x80:
         return None
+    panel_type = frame[7]
+    size = PANEL_TYPE_SIZES.get(panel_type)
     return {
         "firmware": f"{frame[4]}.{frame[5]:02d}",
-        "panel_type": frame[7],
+        "panel_type": panel_type,
+        "panel_size": f"{size[0]}x{size[1]}" if size else None,
     }

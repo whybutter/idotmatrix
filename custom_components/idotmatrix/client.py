@@ -32,6 +32,7 @@ from .const import (
     COMMAND_SETTLE_SECONDS,
     IDLE_DISCONNECT_SECONDS,
     READ_CHAR_UUID,
+    VERSION_CHAR_UUID,
     WRITE_CHAR_UUID,
 )
 
@@ -116,7 +117,8 @@ class IdotMatrixClient:
         _LOGGER.debug("notify from %s: %s", self._address, frame.hex())
         self._notifications.put_nowait(frame)
         if (info := protocol.parse_device_info(frame)) is not None:
-            self._device_info = info
+            # Merge, don't replace: firmware_full comes from a separate GATT read.
+            self._device_info = {**(self._device_info or {}), **info}
             for cb in list(self._device_info_listeners):
                 cb()
 
@@ -150,8 +152,17 @@ class IdotMatrixClient:
     ) -> None:
         await self._write(protocol.clock(style, show_date, hour24, r, g, b))
 
-    async def show_effect(self, style: int, colors: list[tuple[int, int, int]]) -> None:
-        await self._write(protocol.effect(style, colors))
+    async def show_effect(
+        self, style: int, colors: list[tuple[int, int, int]], speed: int = 90
+    ) -> None:
+        await self._write(protocol.effect(style, colors, speed))
+
+    async def show_album(self) -> None:
+        """Switch the panel to its stored-asset carousel without re-uploading."""
+        await self._write(protocol.enter_asset_view())
+
+    async def stop_rhythm(self) -> None:
+        await self._write(protocol.rhythm_stop())
 
     async def chronograph(self, mode: int) -> None:
         await self._write(protocol.chronograph(mode))
@@ -506,9 +517,29 @@ class IdotMatrixClient:
             await self._client.start_notify(READ_CHAR_UUID, self._on_notify)
         except (BleakError, TimeoutError) as err:
             _LOGGER.debug("Could not subscribe to notifications: %s", err)
+        await self._read_firmware_version(self._client)
         await self._sync_time(self._client)
         self._notify_connection(True)
         return self._client
+
+    async def _read_firmware_version(self, client: BleakClientWithServiceCache) -> None:
+        """Read the firmware version string from its dedicated GATT characteristic
+        (found by dallanwagz/idotmatrix-ha) — a fuller ASCII string than the
+        major.minor in the auto-pushed device-info frame. Best-effort: older
+        firmwares may not expose it, and it must never fail the connection."""
+        if self._device_info and self._device_info.get("firmware_full"):
+            return
+        try:
+            raw = await client.read_gatt_char(VERSION_CHAR_UUID)
+        except (BleakError, TimeoutError, OSError) as err:
+            _LOGGER.debug("No firmware-version characteristic: %s", err)
+            return
+        version = raw.decode("ascii", errors="replace").strip("\x00 \r\n")
+        if not version:
+            return
+        self._device_info = {**(self._device_info or {}), "firmware_full": version}
+        for cb in list(self._device_info_listeners):
+            cb()
 
     async def _sync_time(self, client: BleakClientWithServiceCache) -> None:
         """Push the current local time on connect so on-device clock/schedule

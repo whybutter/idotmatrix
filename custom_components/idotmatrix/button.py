@@ -54,6 +54,14 @@ async def async_setup_entry(
             lambda cl: cl.countdown(COUNTDOWN_ACTIONS["stop"], 0, 0),
         )
     )
+    # Show the stored on-device album (carousel) without re-uploading it —
+    # the way back to the album after clock/text/any other mode.
+    entities.append(
+        IdotMatrixActionButton(
+            c, av, name, "show_album", "Show album", "mdi:view-carousel",
+            lambda cl: cl.show_album(),
+        )
+    )
     # Send text (renders the Message text entity's stored value)
     entities.append(IdotMatrixSendTextButton(c, av, name, st, hass))
 

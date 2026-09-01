@@ -51,6 +51,9 @@ MAX_WB = 1.0
 LOCAL_NAME_PREFIX = "IDM-"
 WRITE_CHAR_UUID = "0000fa02-0000-1000-8000-00805f9b34fb"
 READ_CHAR_UUID = "0000fa03-0000-1000-8000-00805f9b34fb"
+# Plain GATT-readable firmware version string (ASCII), found by
+# dallanwagz/idotmatrix-ha — richer than the major.minor in the notify frame.
+VERSION_CHAR_UUID = "d44bc439-abfd-45a2-b575-925416129602"
 
 # The panel needs a moment to process each command before it can accept the
 # next write-without-response (empirical, confirmed by the maintained forks).
@@ -84,6 +87,8 @@ SERVICE_SHOW_EFFECT = "show_effect"
 SERVICE_CHRONOGRAPH = "chronograph"
 SERVICE_COUNTDOWN = "countdown"
 SERVICE_SCOREBOARD = "scoreboard"
+SERVICE_SHOW_ALBUM = "show_album"
+SERVICE_STOP_RHYTHM = "stop_rhythm"
 
 ATTR_FILE_PATH = "file_path"
 ATTR_IMAGE_DATA = "image_data"

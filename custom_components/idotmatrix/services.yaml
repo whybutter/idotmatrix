@@ -278,6 +278,15 @@ show_effect:
       required: false
       selector:
         object:
+    speed:
+      name: Speed
+      description: Animation speed, 0-100.
+      required: false
+      default: 90
+      selector:
+        number:
+          min: 0
+          max: 100
 
 chronograph:
   name: Chronograph
@@ -351,3 +360,19 @@ scoreboard:
           min: 0
           max: 999
           mode: box
+
+show_album:
+  name: Show album
+  description: Switch the panel back to its stored on-device album (carousel) without re-uploading anything.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+
+stop_rhythm:
+  name: Stop rhythm
+  description: Stop the audio rhythm visualizer.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix

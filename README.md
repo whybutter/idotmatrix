@@ -1,7 +1,24 @@
 # iDotMatrix Home Assistant Integration
 
 Control an iDotMatrix RGB LED panel from Home Assistant over BLE, without any
-dedicated bridge hardware or custom firmware.
+dedicated bridge hardware or custom firmware. Ships a full sidebar panel
+(gallery, albums, art catalog), two Lovelace cards, and a complete entity model.
+
+## Screenshots
+
+The sidebar panel (Settings-free: it registers itself):
+
+| Home | Gallery |
+|---|---|
+| ![Home view](docs/screenshots/panel-home.png) | ![Gallery](docs/screenshots/panel-gallery.png) |
+
+| Albums | Creating an album |
+|---|---|
+| ![Albums](docs/screenshots/panel-albums.png) | ![New album](docs/screenshots/panel-album-create.png) |
+
+Browsing the app's own cloud art catalog (plus OpenMoji and Pokémon sources):
+
+![Explore view](docs/screenshots/panel-explore.png)
 
 ## How it works
 
@@ -46,7 +63,7 @@ panel, so writable entities are marked `assumed_state`):
   - `idotmatrix.show_clock` — on-device clock (8 styles, date on/off, 12/24h,
     color).
   - `idotmatrix.show_effect` — built-in animated background (7 styles, 2-7
-    color palette).
+    color palette, speed 0-100).
   - `idotmatrix.chronograph` — stopwatch (reset/start/pause/resume).
   - `idotmatrix.countdown` — timer (start/stop/pause/restart, mm:ss).
   - `idotmatrix.scoreboard` — two counters (0-999 each).
@@ -54,9 +71,13 @@ panel, so writable entities are marked `assumed_state`):
     time + eco brightness).
   - `idotmatrix.mic_rhythm` — on-device microphone reactive visualizer
     (style + sensitivity).
+  - `idotmatrix.show_album` — switch back to the stored on-device album
+    (carousel) without re-uploading anything.
+  - `idotmatrix.stop_rhythm` — stop the audio rhythm visualizer.
 - **Number: Screen-on time** — auto screen-off timeout.
-- **Sensors (diagnostic): Firmware, Panel type** — parsed from the info the
-  panel pushes on connect.
+- **Sensors (diagnostic): Firmware, Panel type, Panel size** — firmware read
+  from the panel's version characteristic (with the auto-pushed device info as
+  fallback); panel type decoded to pixel dimensions.
 
 The panel's clock is synced to local time automatically on every connect.
 - **Switch: Flip display** — 180° rotation (explicit on/off command).
@@ -76,8 +97,8 @@ no adapter/proxy has seen it recently.
 - `client.py` — connection management on top of HA's Bluetooth stack:
   a lock serializes writes, every command is followed by a 0.5 s settle
   delay (the panel silently drops back-to-back writes), and the connection
-  is released after 20 s idle so it doesn't hold one of the proxy's limited
-  connection slots.
+  is released after 10 minutes idle so it doesn't permanently hold one of the
+  proxy's limited connection slots.
 - `availability.py` — advertisement-based availability via HA bluetooth
   callbacks.
 - Thin entity platforms (`light`, `switch`, `button`, `number`, `sensor`) over
@@ -99,28 +120,43 @@ differ from the community reverse-engineering and matter here:
 - **There is no freeze command.** The app has no freeze/unfreeze feature; the
   community `04 00 03 00` frame freezes but the firmware never unfreezes from
   it. To hold a static display, upload an image.
-- **Image pixels are G,R,B, not R,G,B**, sent as raw pixel bytes (not an
-  encoded PNG) after enabling DIY mode, written with-response with a
-  per-block ack. Sending R,G,B or write-without-response leaves the panel
-  blank.
+- **Image pixels are raw R,G,B bytes** (not an encoded PNG), sent after
+  enabling DIY mode as paced write-WITHOUT-response sub-chunks, ack-gated on
+  the notify characteristic between 4 KB blocks. Large or un-paced writes are
+  silently dropped (by ESPHome-style proxies and by the panel itself), which
+  reads back as "everything succeeded" and a black screen.
+
+See [docs/bluetooth-protocol.md](./docs/bluetooth-protocol.md) for the full
+command catalog — including the persistent on-device album (carousel) format,
+which took real hardware time to pin down.
 
 ## Validated against real hardware
 
-on/off, brightness, flip (2026-08-26, via a WBRG1 active proxy). Image upload
-reworked from the app disassembly (G,R,B + write-with-response) pending
-re-test.
+Everything user-facing: power/brightness/flip, solid color, image and GIF
+upload, text, clock/effects, chronograph/countdown/scoreboard, mic rhythm,
+device-side albums (persistent carousel), and the cloud catalog — all on a
+32×32 panel through ESPHome-style BLE proxies.
 
-## Out of scope (for now)
+## In progress
 
-Text rendering, GIFs, clock/chronograph/scoreboard modes — reverse-engineered
-in the community repos / app if we want them later.
+On-device schedules (Programs) and alarms — protocol drafted from the
+[ESP32 emulator project](https://github.com/piggei/IDotMatrix-ESP32-Emulator)'s
+findings, pending hardware validation.
 
 ## Credits
 
 Protocol reverse-engineered by the `derkalle4/python3-idotmatrix-library`
 community (archived 2026-06-05), continued in
 `Toon-nooT/idotmatrix-api-client` / `markusressel/python3-idotmatrix-library`
-and `8none1/idotmatrix`, plus a disassembly of the official app.
+and `8none1/idotmatrix`, plus our own disassembly of the official app.
+Cross-validated against two independent projects that reverse-engineered the
+same hardware in parallel:
+[`dallanwagz/idotmatrix-ha`](https://github.com/dallanwagz/idotmatrix-ha)
+(golden-frame-tested protocol module; source of the firmware-version
+characteristic, the panel-type size table, the DIY-mode enum names, and the
+corrected effect framing) and
+[`piggei/IDotMatrix-ESP32-Emulator`](https://github.com/piggei/IDotMatrix-ESP32-Emulator)
+(device-side emulation; source of the schedule/alarm drafts).
 
 ## Documentation
 

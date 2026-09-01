@@ -59,8 +59,10 @@ from .const import (
     SERVICE_SCOREBOARD,
     SERVICE_SEND_TEXT,
     SERVICE_SET_ECO,
+    SERVICE_SHOW_ALBUM,
     SERVICE_SHOW_CLOCK,
     SERVICE_SHOW_EFFECT,
+    SERVICE_STOP_RHYTHM,
     SERVICE_UPLOAD_GIF,
     SERVICE_UPLOAD_IMAGE,
     TEXT_COLOR_MODES,
@@ -200,6 +202,9 @@ async def async_setup_entry(
             vol.Optional(ATTR_COLORS, default=DEFAULT_EFFECT_COLORS): vol.All(
                 [_RGB], vol.Length(min=2, max=7)
             ),
+            vol.Optional(ATTR_SPEED, default=90): vol.All(
+                vol.Coerce(int), vol.Range(0, 100)
+            ),
         },
         "async_show_effect",
     )
@@ -246,6 +251,12 @@ async def async_setup_entry(
             ),
         },
         "async_set_eco",
+    )
+    platform.async_register_entity_service(
+        SERVICE_SHOW_ALBUM, None, "async_show_album"
+    )
+    platform.async_register_entity_service(
+        SERVICE_STOP_RHYTHM, None, "async_stop_rhythm"
     )
 
 
@@ -383,16 +394,25 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         )
 
     async def async_show_effect(
-        self, style: int | str, colors: list[tuple[int, int, int]]
+        self, style: int | str, colors: list[tuple[int, int, int]], speed: int = 90
     ) -> None:
         style_int = (
             EFFECT_STYLES.get(style, style) if isinstance(style, str) else style
         )
         await self._run(
             self._client.show_effect(
-                style_int, [_correct_rgb(c, self._correction) for c in colors]
+                style_int,
+                [_correct_rgb(c, self._correction) for c in colors],
+                speed,
             )
         )
+
+    async def async_show_album(self) -> None:
+        """Switch the panel back to its stored album carousel (no re-upload)."""
+        await self._run(self._client.show_album())
+
+    async def async_stop_rhythm(self) -> None:
+        await self._run(self._client.stop_rhythm())
 
     async def async_chronograph(self, action: str) -> None:
         await self._run(self._client.chronograph(CHRONOGRAPH_ACTIONS[action]))

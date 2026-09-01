@@ -27,6 +27,7 @@ async def async_setup_entry(
         [
             IdotMatrixInfoSensor(*args, "firmware", "Firmware", "mdi:chip"),
             IdotMatrixInfoSensor(*args, "panel_type", "Panel type", "mdi:grid"),
+            IdotMatrixInfoSensor(*args, "panel_size", "Panel size", "mdi:grid"),
         ]
     )
 
@@ -51,4 +52,10 @@ class IdotMatrixInfoSensor(IdotMatrixEntity, SensorEntity):
     @property
     def native_value(self):
         info = self._client.device_info
-        return info.get(self._key) if info else None
+        if not info:
+            return None
+        if self._key == "firmware":
+            # Prefer the full ASCII string from the version characteristic over
+            # the major.minor parsed out of the device-info notification.
+            return info.get("firmware_full") or info.get("firmware")
+        return info.get(self._key)

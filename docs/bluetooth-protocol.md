@@ -435,12 +435,17 @@ Optional (present but "does not seem to work"): time indicator `05 00 07 80 <0/1
 ## 17. Effects (built-in animated backgrounds)
 
 ```
-<6+3N> 00 03 02 <style> 90 <N> <R1 G1 B1> <R2 G2 B2> ... <RN GN BN>
+<len_lo> <len_hi> 03 02 <style> <speed> <N> <R1 G1 B1> <R2 G2 B2> ... <RN GN BN>
 ```
-- Byte 0 = `6 + N` where `N` = number of colors (packet length low byte). `03`=cmd, **`02`=selector**.
-- **`<style>`** 0–6 (see below). Byte 5 = `90` (=144, a fixed speed/param). Byte 6 = `N`
-  (count of RGB triples). Then `N` RGB triples. `N` must be **2–7**.
-- `[Toon]` `EffectModule._compute_payload`, `[derkalle4]` `Effect` (identical).
+- **Length = normal little-endian total** `7 + 3N` (the `6+N` first byte the
+  community forks emit is a bug they share — see Discrepancies #13). `03`=cmd,
+  **`02`=selector**.
+- **`<style>`** 0–6 (see below). **`<speed>`** 0–100 — the app's lightning-bolt
+  slider (the forks hardcode `0x90`=144, out of range). Byte 6 = `N` (count of
+  RGB triples), then `N` RGB triples, `N` **2–7**, full-range 0–255 per channel.
+  Channel value `1` is reserved by the firmware; the app remaps it to `0`.
+- Hardware-confirmed with this framing by `[dallanwagz]` on a 32×32 (the panel
+  acks `05 00 03 02 01`), from the app's `MutilColorAgreement`.
 
 **Effect styles (0–6)** `[Toon]` `EffectStyle`:
 0 horizontal rainbow gradient, 1 random colored pixels on black, 2 random white pixels on
@@ -645,9 +650,10 @@ upload size); there is no cheap loop-count route.
     it as never referenced by the Android app; real per-effect speed lives in the Text metadata
     (byte 5) and GIF frame durations, not this command.
 
-11. **UUID confusion in `[Toon]` const.py.** It defines extra `d44bc439-...` UUIDs that are unused
-    by the actual modules. The live characteristics are `fa02` (write) and `fa03` (notify). Ignore
-    the `d44bc439` set for iDotMatrix.
+11. **The `d44bc439-...` UUID is real** (correction of an earlier note that dismissed it as
+    unused cruft in `[Toon]` const.py). `d44bc439-abfd-45a2-b575-925416129602` is a plain
+    GATT-readable **firmware version string** (ASCII) — confirmed by `[dallanwagz]` and used by
+    this integration's Firmware sensor. The command path is still `fa02` (write) / `fa03` (notify).
 
 12. **Byte-3 selector collisions to watch** (same command id, different operation):
     `04 01`=DIY-mode vs `04 80`=brightness vs `04 02 01`=password;
@@ -657,6 +663,54 @@ upload size); there is no cheap loop-count route.
     `07 01`=power vs `07 80`=clock time-indicator;
     `04 80 50` (in reset) vs `04 80 <5..100>` (brightness) — differentiated by value range and
     the preceding `04 00 03 80`.
+
+13. **Effect frame length: `[Toon]`/`[derkalle4]` emit a wrong first byte (`6+N`).** The app's
+    `MutilColorAgreement` builds a normal little-endian total length `7 + 3N`, with a real
+    0–100 speed byte where the forks hardcode `0x90` — hardware-confirmed by `[dallanwagz]`
+    (see Section 17). Shared-ancestry bug: both forks inherit it from the archived original.
+
+---
+
+## 23. Independent cross-validation (dallanwagz/idotmatrix-ha)
+
+`[dallanwagz]` = <https://github.com/dallanwagz/idotmatrix-ha>, an independent
+reverse-engineering of the same HXS-002 32×32 hardware (golden-frame unit tests
+anchored to hardware captures), found 2026-09-01. Everything below is theirs,
+cross-checked against this document:
+
+- **Firmware-version GATT characteristic** `d44bc439-abfd-45a2-b575-925416129602`
+  — a plain readable ASCII version string, richer than the major.minor in the
+  auto-pushed device-info frame. (Adopted: the integration reads it on connect.)
+- **Panel-type → size table** (app `AppData.setLedType`): 1=16×16, 2=8×32,
+  3=32×32, 4=64×64, 6=24×48, 7=16×32, 11=16×64. (Adopted: Panel size sensor.)
+- **DIY-mode enum names** (`DiyImageFun`): 0=quit-no-save, 1=enter+clear,
+  2=**quit but keep showing the still**, 3=enter-no-clear.
+- **The panel itself drops GATT writes larger than ~256 bytes** even with a
+  512 MTU negotiated (they cap at 244). Complements our proxy-side finding —
+  either way, small paced writes are mandatory.
+- **Phone-audio spectrum streaming**: raw 21-byte frames at ~12 fps, constant
+  prefix `21 00 01 02 02` + 16 column heights = 8 band magnitudes mirrored
+  left-right. Stop = `06 00 00 02 00 00` (`sendStopMicRhythm`). Golden frame:
+  `2100010202 0a05040202040202 02020402020405 0a`.
+- **Carousel slot semantics for the bulk header's byte 15** (their
+  `image_index`): 0–11 = storage slot, 12 = live/show-now (time-sign forced 0),
+  13 = preview buffer, 14–35 ack but don't play. Matches our §21f finding that
+  byte 15 is the 0-based album index; they additionally report the dwell field
+  as **little-endian seconds** where we found a **big-endian ConvertTime key**
+  (10/30/60/300 s) — both observed working on hardware, so the firmware may
+  accept both; ours is byte-exact from the app decompile.
+- Extra commands (decompile-sourced, not in their hardware-validated list):
+  hourly time-indicator `05 00 07 80 <0|1>` (NB: the emulator project reads the
+  same frame as the schedule master switch — unresolved), device password
+  set/verify (`04 02` / `05 02`, digits as three decimal byte-pairs),
+  multi-panel joint mode `05 00 0C 80 <mode>`, screen-light-time read
+  `05 00 0F 80 FF`.
+- **Security note:** the QR code on the box offers an APK from `api.e-toys.cn`
+  that is DEX-packed (Baidu Protect) and requests extra permissions
+  (self-install, read-phone-state, boot). Use the Play Store build.
+
+Their companion repo (`dallanwagz/ledpanels`, full protocol reference and
+driver library) was not public at the time of writing.
 
 ---
 

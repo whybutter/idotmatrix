@@ -5,9 +5,11 @@ takes plain values and returns `bytes` ready to write to the panel's write
 characteristic. Knowledge source: the community reverse engineering of the
 official app (derkalle4/python3-idotmatrix-library, archived, and its
 maintained fork Toon-nooT/idotmatrix-api-client) — byte tables cross-checked
-against both.
+against both, plus dallanwagz/idotmatrix-ha (independent RE of the same
+hardware, golden-frame tested).
 """
 from .commands import (
+    PANEL_TYPE_SIZES,
     brightness,
     chronograph,
     clock,
@@ -17,11 +19,15 @@ from .commands import (
     diy_mode,
     eco,
     effect,
+    enter_asset_view,
     flip,
     fullscreen_color,
     mic_rhythm,
     parse_device_info,
+    request_device_info,
     reset,
+    rhythm_frame,
+    rhythm_stop,
     scoreboard,
     screen_on_time,
     screen_power,
@@ -34,6 +40,7 @@ from .image import build_asset_upload, build_image_upload
 from .text import SEPARATOR as TEXT_SEPARATOR, build_text_packet
 
 __all__ = [
+    "PANEL_TYPE_SIZES",
     "TEXT_SEPARATOR",
     "brightness",
     "build_asset_upload",
@@ -49,11 +56,15 @@ __all__ = [
     "diy_mode",
     "eco",
     "effect",
+    "enter_asset_view",
     "flip",
     "fullscreen_color",
     "mic_rhythm",
     "parse_device_info",
+    "request_device_info",
     "reset",
+    "rhythm_frame",
+    "rhythm_stop",
     "scoreboard",
     "screen_on_time",
     "screen_power",
