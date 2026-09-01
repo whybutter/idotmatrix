@@ -22,9 +22,10 @@
     "step": {
       "init": {
         "title": "iDotMatrix options",
-        "description": "Home Assistant normally connects through the proxy with the strongest signal, but the strongest one can be unreliable. Pin a specific proxy if needed.",
+        "description": "Home Assistant normally connects through the proxy with the strongest signal, but the strongest one can be unreliable. Pin a specific proxy if needed.\n\nGamma corrects colour for the panel: its LEDs are near-linear while images are sRGB, so uncorrected output looks washed out. 2.2 is the recommended default — lower it towards 1.0 for a brighter, flatter look, or raise it for richer, darker colour.",
         "data": {
-          "preferred_proxy": "Preferred BLE proxy"
+          "preferred_proxy": "Preferred BLE proxy",
+          "gamma": "Display gamma (colour correction)"
         }
       }
     }

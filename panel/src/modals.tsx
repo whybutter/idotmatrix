@@ -103,7 +103,7 @@ export function ScoreboardModal({
   const hass = useHass();
   const [c1, setC1] = useState(0);
   const [c2, setC2] = useState(0);
-  const { status, busy, run } = useBusyAction((m) => notify("Marcador falló: " + m, true));
+  const { status, busy, run } = useBusyAction((m) => notify("Scoreboard failed: " + m, true));
 
   const send = (n1: number, n2: number) => {
     const a = clamp(n1);
@@ -121,18 +121,18 @@ export function ScoreboardModal({
   };
 
   return (
-    <Modal title="Marcador" onClose={onClose}>
+    <Modal title="Scoreboard" onClose={onClose}>
       {!available && (
-        <p className="idot-hint">El panel no está disponible — conéctalo para enviar.</p>
+        <p className="idot-hint">Panel is unavailable — connect it to send.</p>
       )}
       <div className="idot-score-row">
-        <Counter color="#0a84ff" label="Local" value={c1} onChange={(v) => send(v, c2)} disabled={busy} />
+        <Counter color="#0a84ff" label="Home" value={c1} onChange={(v) => send(v, c2)} disabled={busy} />
         <div className="idot-score-sep">:</div>
-        <Counter color="#ff453a" label="Visitante" value={c2} onChange={(v) => send(c1, v)} disabled={busy} />
+        <Counter color="#ff453a" label="Away" value={c2} onChange={(v) => send(c1, v)} disabled={busy} />
       </div>
       <div className="idot-modal-actions" style={{ marginTop: 6 }}>
         <button className="idot-btn-secondary" onClick={() => send(0, 0)} disabled={busy}>
-          Reiniciar (0 : 0)
+          Reset (0 : 0)
         </button>
         <button
           className={"idot-btn" + statusFlash(status)}
@@ -141,10 +141,10 @@ export function ScoreboardModal({
         >
           {busy ? (
             <span className="idot-btn-status">
-              <IconSpinner /> &nbsp;Enviando…
+              <IconSpinner /> &nbsp;Sending…
             </span>
           ) : (
-            "Enviar marcador"
+            "Send scoreboard"
           )}
         </button>
       </div>
@@ -212,8 +212,8 @@ export function TimersModal({
   available,
 }: BaseProps & { available: boolean }) {
   const hass = useHass();
-  const chrono = useBusyAction((m) => notify("Cronómetro falló: " + m, true));
-  const count = useBusyAction((m) => notify("Cuenta regresiva falló: " + m, true));
+  const chrono = useBusyAction((m) => notify("Stopwatch failed: " + m, true));
+  const count = useBusyAction((m) => notify("Countdown failed: " + m, true));
   const [min, setMin] = useState(1);
   const [sec, setSec] = useState(0);
 
@@ -238,28 +238,28 @@ export function TimersModal({
   const clampM = (n: number) => Math.max(0, Math.min(59, Number.isNaN(n) ? 0 : Math.round(n)));
 
   return (
-    <Modal title="Temporizadores" onClose={onClose}>
+    <Modal title="Timers" onClose={onClose}>
       {!available && (
-        <p className="idot-hint">El panel no está disponible — conéctalo para enviar.</p>
+        <p className="idot-hint">Panel is unavailable — connect it to send.</p>
       )}
 
       {/* Chronograph */}
       <div className="idot-timer-block">
         <div className="idot-timer-title">
-          Cronómetro {chrono.busy && <IconSpinner size={14} />}
+          Stopwatch {chrono.busy && <IconSpinner size={14} />}
         </div>
         <div className="idot-timer-btns">
           <button className="idot-quick-go" onClick={() => chronoAction("start")} disabled={chrono.busy || !available}>
-            Iniciar
+            Start
           </button>
           <button className="idot-quick-go" onClick={() => chronoAction("pause")} disabled={chrono.busy || !available}>
-            Pausar
+            Pause
           </button>
           <button className="idot-quick-go" onClick={() => chronoAction("resume")} disabled={chrono.busy || !available}>
-            Reanudar
+            Resume
           </button>
           <button className="idot-quick-go st-danger" onClick={() => chronoAction("reset")} disabled={chrono.busy || !available}>
-            Reiniciar
+            Reset
           </button>
         </div>
       </div>
@@ -267,7 +267,7 @@ export function TimersModal({
       {/* Countdown */}
       <div className="idot-timer-block">
         <div className="idot-timer-title">
-          Cuenta regresiva {count.busy && <IconSpinner size={14} />}
+          Countdown {count.busy && <IconSpinner size={14} />}
         </div>
         <div className="idot-timer-inputs">
           <div className="idot-timer-field">
@@ -283,7 +283,7 @@ export function TimersModal({
           </div>
           <div className="idot-timer-colon">:</div>
           <div className="idot-timer-field">
-            <label>Seg</label>
+            <label>Sec</label>
             <input
               className="idot-input"
               type="number"
@@ -296,16 +296,16 @@ export function TimersModal({
         </div>
         <div className="idot-timer-btns">
           <button className="idot-quick-go" onClick={() => countAction("start")} disabled={count.busy || !available}>
-            Iniciar
+            Start
           </button>
           <button className="idot-quick-go" onClick={() => countAction("pause")} disabled={count.busy || !available}>
-            Pausar
+            Pause
           </button>
           <button className="idot-quick-go" onClick={() => countAction("restart")} disabled={count.busy || !available}>
-            Reiniciar
+            Restart
           </button>
           <button className="idot-quick-go st-danger" onClick={() => countAction("stop")} disabled={count.busy || !available}>
-            Detener
+            Stop
           </button>
         </div>
       </div>

@@ -29,7 +29,7 @@ export function Gallery({ device, notify }: Props) {
       const list = await galleryList(hass);
       setItems(list);
     } catch (e) {
-      notify("No se pudo cargar la galería: " + (e as Error).message, true);
+      notify("Could not load the gallery: " + (e as Error).message, true);
       setItems([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -49,21 +49,21 @@ export function Gallery({ device, notify }: Props) {
           <div className="idot-section-icon">
             <IconImage size={18} />
           </div>
-          <div className="idot-section-title">Galería</div>
+          <div className="idot-section-title">Gallery</div>
         </div>
         <button className="idot-add-btn" onClick={() => setShowAdd(true)}>
-          + Añadir
+          + Add
         </button>
       </div>
 
       {items === null ? (
         <div className="idot-gallery-loading">
           <IconSpinner size={26} />
-          <span>Cargando galería…</span>
+          <span>Loading gallery…</span>
         </div>
       ) : items.length === 0 ? (
         <div className="idot-gallery-empty">
-          Aún no hay imágenes — sube una desde tu PC.
+          No images yet — upload one from your computer.
         </div>
       ) : (
         <div className="idot-gallery-grid">
@@ -118,7 +118,7 @@ function GalleryThumb({
   onRequestDelete: () => void;
 }) {
   const hass = useHass();
-  const { status, busy, run } = useBusyAction((m) => notify("Envío falló: " + m, true));
+  const { status, busy, run } = useBusyAction((m) => notify("Send failed: " + m, true));
 
   const send = () =>
     run(() => gallerySend(hass, device.lightEntityId, item)).then((ok) => {
@@ -149,7 +149,7 @@ function GalleryThumb({
 
         <button
           className="idot-thumb-del"
-          title="Eliminar"
+          title="Delete"
           onClick={(e) => {
             e.stopPropagation();
             onRequestDelete();
@@ -178,7 +178,7 @@ function AddModal({
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const { busy, run } = useBusyAction((m) => notify("Guardar falló: " + m, true));
+  const { busy, run } = useBusyAction((m) => notify("Save failed: " + m, true));
 
   const pick = (f: File | null) => {
     setFile(f);
@@ -200,18 +200,18 @@ function AddModal({
         is_gif: isGif,
         mime: file.type || (isGif ? "image/gif" : "image/png"),
       });
-      notify("Guardado en la galería");
+      notify("Saved to gallery");
     }).then((ok) => {
       if (ok) onAdded();
     });
   };
 
   return (
-    <Modal title="Añadir a la galería" onClose={onClose}>
+    <Modal title="Add to gallery" onClose={onClose}>
       <div className="idot-field">
-        <label>Imagen / GIF desde tu PC</label>
+        <label>Image / GIF from your computer</label>
         <label className="idot-file-drop">
-          {file ? file.name : "Elige un archivo (PNG, JPG, GIF)"}
+          {file ? file.name : "Choose a file (PNG, JPG, GIF)"}
           <input
             type="file"
             accept="image/*"
@@ -223,17 +223,17 @@ function AddModal({
       </div>
 
       <div className="idot-field">
-        <label>Nombre</label>
+        <label>Name</label>
         <input
           className="idot-input"
-          placeholder="Nombre para la galería"
+          placeholder="Name for the gallery"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
       </div>
 
       <div className="idot-field">
-        <label>Tamaño del panel</label>
+        <label>Panel size</label>
         <div className="idot-size-toggle">
           {([16, 32, 64] as const).map((s) => (
             <button
@@ -254,10 +254,10 @@ function AddModal({
       >
         {busy ? (
           <span className="idot-btn-status">
-            <IconSpinner /> &nbsp;Guardando…
+            <IconSpinner /> &nbsp;Saving…
           </span>
         ) : (
-          "Guardar en galería"
+          "Save to gallery"
         )}
       </button>
     </Modal>
@@ -277,28 +277,27 @@ function DeleteModal({
   onDeleted: (id: string) => void;
 }) {
   const hass = useHass();
-  const { busy, run } = useBusyAction((m) => notify("Eliminar falló: " + m, true));
+  const { busy, run } = useBusyAction((m) => notify("Delete failed: " + m, true));
 
   const del = () =>
     run(async () => {
       await galleryDelete(hass, item.id);
-      notify("Eliminado");
+      notify("Deleted");
     }).then((ok) => {
       if (ok) onDeleted(item.id);
     });
 
   return (
-    <Modal title="Eliminar imagen" onClose={onClose}>
+    <Modal title="Delete image" onClose={onClose}>
       <p className="idot-hint" style={{ marginBottom: 18 }}>
-        ¿Eliminar <strong>{item.name}</strong> de la galería? Esta acción no se puede
-        deshacer.
+        Delete <strong>{item.name}</strong> from the gallery? This cannot be undone.
       </p>
       <div className="idot-modal-actions">
         <button className="idot-btn-secondary" onClick={onClose} disabled={busy}>
           Cancelar
         </button>
         <button className="idot-btn idot-btn-danger" onClick={del} disabled={busy}>
-          {busy ? "Eliminando…" : "Eliminar"}
+          {busy ? "Deleting…" : "Delete"}
         </button>
       </div>
     </Modal>

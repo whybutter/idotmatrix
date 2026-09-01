@@ -37,10 +37,10 @@ interface Tile {
 // Gallery, plus the not-yet-built stubs. Everything common is inline above.
 const TILES: Tile[] = [
   { key: "upload", label: "Upload image", icon: <IconImage size={22} />, modal: "upload" },
-  { key: "gallery", label: "Galería", icon: <IconGif size={22} />, view: "gallery" },
-  { key: "albums", label: "Álbumes", icon: <IconAlbum size={22} />, view: "albums" },
-  { key: "score", label: "Marcador", icon: <IconScore size={22} />, modal: "scoreboard" },
-  { key: "timers", label: "Temporizadores", icon: <IconTimer size={22} />, modal: "timers" },
+  { key: "gallery", label: "Gallery", icon: <IconGif size={22} />, view: "gallery" },
+  { key: "albums", label: "Albums", icon: <IconAlbum size={22} />, view: "albums" },
+  { key: "score", label: "Scoreboard", icon: <IconScore size={22} />, modal: "scoreboard" },
+  { key: "timers", label: "Timers", icon: <IconTimer size={22} />, modal: "timers" },
 ];
 
 // Deterministic pixel-art "city skyline at sunset" for the hero preview.
@@ -226,7 +226,7 @@ export function App() {
             role="tab"
             aria-selected={view === "gallery"}
           >
-            Galería
+            Gallery
           </button>
           <button
             className={"idot-tab" + (view === "albums" ? " active" : "")}
@@ -234,7 +234,7 @@ export function App() {
             role="tab"
             aria-selected={view === "albums"}
           >
-            Álbumes
+            Albums
           </button>
           <button
             className={"idot-tab" + (view === "explore" ? " active" : "")}
@@ -282,9 +282,9 @@ export function App() {
             )
           ) : (
             <div className="idot-card idot-connecting">
-              <div className="idot-connecting-title">Sin dispositivo</div>
+              <div className="idot-connecting-title">No device</div>
               <div className="idot-connecting-sub">
-                No se encontró ningún panel iDotMatrix.
+                No iDotMatrix panel was found.
               </div>
             </div>
           )
@@ -293,16 +293,16 @@ export function App() {
           <div className="idot-card idot-connecting">
             {entityMissing ? (
               <>
-                <div className="idot-connecting-title">Panel no disponible</div>
+                <div className="idot-connecting-title">Panel unavailable</div>
                 <div className="idot-connecting-sub">
-                  Esperando a que el panel esté disponible en Home Assistant…
+                  Waiting for the panel to become available in Home Assistant…
                 </div>
               </>
             ) : (
               <>
                 <IconSpinner size={34} />
-                <div className="idot-connecting-title">Conectando con el panel…</div>
-                <div className="idot-connecting-sub">Esto puede tardar unos segundos (BLE).</div>
+                <div className="idot-connecting-title">Connecting to the panel…</div>
+                <div className="idot-connecting-sub">This can take a few seconds (BLE).</div>
               </>
             )}
           </div>
@@ -377,7 +377,7 @@ export function App() {
                   <div className="idot-tile-icon">{t.icon}</div>
                   <div className="idot-tile-body">
                     <div className="idot-tile-label">{t.label}</div>
-                    {t.soon && <div className="idot-soon-badge">Próximamente</div>}
+                    {t.soon && <div className="idot-soon-badge">Coming soon</div>}
                   </div>
                 </div>
               ))}

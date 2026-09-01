@@ -48,7 +48,7 @@ export function Albums({ device, available, notify }: Props) {
       setPlayingId(a.playingAlbumId);
       setGallery(g);
     } catch (e) {
-      notify("No se pudieron cargar los álbumes: " + (e as Error).message, true);
+      notify("Could not load albums: " + (e as Error).message, true);
       setAlbums([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,29 +65,29 @@ export function Albums({ device, available, notify }: Props) {
           <div className="idot-section-icon">
             <IconAlbum size={18} />
           </div>
-          <div className="idot-section-title">Álbumes</div>
+          <div className="idot-section-title">Albums</div>
         </div>
         <button
           className="idot-add-btn"
           onClick={() => setEditing("new")}
           disabled={gallery.length === 0 && albums !== null && albums.length === 0}
-          title={gallery.length === 0 ? "Primero añade imágenes en la Galería" : ""}
+          title={gallery.length === 0 ? "Add images to the Gallery first" : ""}
         >
-          + Nuevo álbum
+          + New album
         </button>
       </div>
 
       {albums === null ? (
         <div className="idot-gallery-loading">
           <IconSpinner size={26} />
-          <span>Cargando álbumes…</span>
+          <span>Loading albums…</span>
         </div>
       ) : albums.length === 0 ? (
         <div className="idot-gallery-empty">
           {gallery.length === 0 ? (
-            <>Aún no hay álbumes. Primero añade imágenes en la Galería, luego crea un álbum.</>
+            <>No albums yet. Add images to the Gallery first, then create an album.</>
           ) : (
-            <>Aún no hay álbumes — crea uno con "+ Nuevo álbum".</>
+            <>No albums yet — create one with "+ New album".</>
           )}
         </div>
       ) : (
@@ -160,8 +160,8 @@ function AlbumCard({
   onRequestDelete: () => void;
 }) {
   const hass = useHass();
-  const play = useBusyAction((m) => notify("Reproducir falló: " + m, true));
-  const stop = useBusyAction((m) => notify("Detener falló: " + m, true));
+  const play = useBusyAction((m) => notify("Play failed: " + m, true));
+  const stop = useBusyAction((m) => notify("Stop failed: " + m, true));
 
   const thumbs = album.item_ids
     .map((id) => gallery[id])
@@ -171,7 +171,7 @@ function AlbumCard({
   const onPlay = () =>
     play.run(() => albumsPlay(hass, album.id, entityId)).then((ok) => {
       if (ok) {
-        notify(`Reproduciendo "${album.name}"`);
+        notify(`Playing "${album.name}"`);
         onChanged();
       }
     });
@@ -181,10 +181,10 @@ function AlbumCard({
       <div className="idot-album-info">
         <div className="idot-album-title-row">
           <div className="idot-album-name">{album.name}</div>
-          {playing && <span className="idot-album-badge">Reproduciendo</span>}
+          {playing && <span className="idot-album-badge">Playing</span>}
         </div>
         <div className="idot-album-meta">
-          {album.item_ids.length} imagen{album.item_ids.length === 1 ? "" : "es"} · cada{" "}
+          {album.item_ids.length} image{album.item_ids.length === 1 ? "" : "s"} · every{" "}
           {album.interval}s
         </div>
         <div className="idot-album-thumbs">
@@ -194,7 +194,7 @@ function AlbumCard({
           {album.item_ids.length > thumbs.length && (
             <span className="idot-album-more">+{album.item_ids.length - thumbs.length}</span>
           )}
-          {thumbs.length === 0 && <span className="idot-album-empty">Sin imágenes</span>}
+          {thumbs.length === 0 && <span className="idot-album-empty">No images</span>}
         </div>
       </div>
 
@@ -207,22 +207,22 @@ function AlbumCard({
             }
             disabled={stop.busy}
           >
-            {stop.busy ? <IconSpinner /> : "Detener"}
+            {stop.busy ? <IconSpinner /> : "Stop"}
           </button>
         ) : (
           <button
             className={"idot-quick-go" + (play.busy ? " st-busy" : "")}
             onClick={onPlay}
             disabled={play.busy || !available || album.item_ids.length === 0}
-            title={!available ? "El panel no está disponible" : ""}
+            title={!available ? "Panel is unavailable" : ""}
           >
-            {play.busy ? <IconSpinner /> : "Reproducir"}
+            {play.busy ? <IconSpinner /> : "Play"}
           </button>
         )}
-        <button className="idot-icon-btn" onClick={onEdit} title="Editar">
+        <button className="idot-icon-btn" onClick={onEdit} title="Edit">
           <EditIcon />
         </button>
-        <button className="idot-icon-btn danger" onClick={onRequestDelete} title="Eliminar">
+        <button className="idot-icon-btn danger" onClick={onRequestDelete} title="Delete">
           <TrashIcon />
         </button>
       </div>
@@ -249,7 +249,7 @@ function EditModal({
   const [interval, setInterval] = useState(album?.interval ?? DEFAULT_INTERVAL);
   // Preserve selection order; start from the album's existing ordering.
   const [selected, setSelected] = useState<string[]>(album?.item_ids ?? []);
-  const { busy, run } = useBusyAction((m) => notify("Guardar falló: " + m, true));
+  const { busy, run } = useBusyAction((m) => notify("Save failed: " + m, true));
 
   const toggle = (id: string) =>
     setSelected((prev) =>
@@ -265,17 +265,17 @@ function EditModal({
         item_ids: selected,
         interval,
       });
-      notify(album ? "Álbum actualizado" : "Álbum creado");
+      notify(album ? "Album updated" : "Album created");
     }).then((ok) => ok && onSaved());
   };
 
   return (
-    <Modal title={album ? "Editar álbum" : "Nuevo álbum"} onClose={onClose}>
+    <Modal title={album ? "Edit album" : "New album"} onClose={onClose}>
       <div className="idot-field">
-        <label>Nombre</label>
+        <label>Name</label>
         <input
           className="idot-input"
-          placeholder="Nombre del álbum"
+          placeholder="Album name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -295,11 +295,11 @@ function EditModal({
 
       <div className="idot-field">
         <label>
-          Imágenes ({selected.length} seleccionada{selected.length === 1 ? "" : "s"})
+          Images ({selected.length} selected)
         </label>
         {gallery.length === 0 ? (
           <p className="idot-hint">
-            No hay imágenes en la Galería. Añade algunas primero.
+            No images in the Gallery. Add some first.
           </p>
         ) : (
           <div className="idot-select-grid">
@@ -332,9 +332,9 @@ function EditModal({
             <IconSpinner /> &nbsp;Guardando…
           </span>
         ) : album ? (
-          "Guardar cambios"
+          "Save changes"
         ) : (
-          "Crear álbum"
+          "Create album"
         )}
       </button>
     </Modal>
@@ -354,26 +354,25 @@ function DeleteModal({
   onDeleted: () => void;
 }) {
   const hass = useHass();
-  const { busy, run } = useBusyAction((m) => notify("Eliminar falló: " + m, true));
+  const { busy, run } = useBusyAction((m) => notify("Delete failed: " + m, true));
 
   const del = () =>
     run(async () => {
       await albumsDelete(hass, album.id);
-      notify("Álbum eliminado");
+      notify("Album deleted");
     }).then((ok) => ok && onDeleted());
 
   return (
-    <Modal title="Eliminar álbum" onClose={onClose}>
+    <Modal title="Delete album" onClose={onClose}>
       <p className="idot-hint" style={{ marginBottom: 18 }}>
-        ¿Eliminar el álbum <strong>{album.name}</strong>? Las imágenes de la galería no se
-        borran.
+        Delete the album <strong>{album.name}</strong>? The images stay in your gallery.
       </p>
       <div className="idot-modal-actions">
         <button className="idot-btn-secondary" onClick={onClose} disabled={busy}>
           Cancelar
         </button>
         <button className="idot-btn idot-btn-danger" onClick={del} disabled={busy}>
-          {busy ? "Eliminando…" : "Eliminar"}
+          {busy ? "Deleting…" : "Delete"}
         </button>
       </div>
     </Modal>

@@ -89,11 +89,14 @@ def async_register(hass: HomeAssistant) -> None:
         connection.send_result(msg["id"], {"item": item})
 
     @websocket_api.websocket_command(
-        {vol.Required("type"): f"{DOMAIN}/gallery/delete", vol.Required("id"): str}
+        # NOT "id": that key is HA's own websocket message identifier (an int),
+        # so declaring it as a str both fails validation ("expected str ... Got
+        # 242") and would shadow the message id we need for send_result.
+        {vol.Required("type"): f"{DOMAIN}/gallery/delete", vol.Required("item_id"): str}
     )
     @websocket_api.async_response
     async def ws_delete(hass, connection, msg):
-        await store.async_delete(msg["id"])
+        await store.async_delete(msg["item_id"])
         connection.send_result(msg["id"], {"success": True})
 
     websocket_api.async_register_command(hass, ws_list)

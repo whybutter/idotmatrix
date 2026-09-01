@@ -147,7 +147,7 @@ class IdotMatrixCard extends HTMLElement {
     cw.appendChild(color); r1.appendChild(cw);
     const bright = document.createElement("input");
     bright.type = "range"; bright.className = "bright"; bright.min = 5; bright.max = 100; bright.value = 80;
-    bright.title = "Brillo";
+    bright.title = "Brightness";
     bright.addEventListener("change", () =>
       this._call("light", "turn_on", { brightness_pct: Number(bright.value) }));
     r1.appendChild(bright);
@@ -162,20 +162,20 @@ class IdotMatrixCard extends HTMLElement {
     modes.appendChild(this._dropdown("Mic", Object.entries(MIC_STYLES),
       (v) => this._call("idotmatrix", "mic_rhythm", { style: Number(v), sensitivity: 50 })));
 
-    // Texto
-    sec("Texto");
+    // Text
+    sec("Text");
     const tr = row();
     const text = document.createElement("input");
-    text.className = "idm text"; text.type = "text"; text.placeholder = "Mensaje…";
+    text.className = "idm text"; text.type = "text"; text.placeholder = "Message…";
     tr.appendChild(text);
-    tr.appendChild(this._btn("Enviar", () => {
+    tr.appendChild(this._btn("Send", () => {
       if (text.value) this._call("idotmatrix", "send_text", { text: text.value });
     }));
 
-    // Imagen / GIF
-    sec("Imagen / GIF (desde tu PC)");
+    // Image / GIF
+    sec("Image / GIF (from your computer)");
     const ur = row();
-    this._sizeSel = this._dropdown("Tamaño", [["16×16", 16], ["32×32", 32], ["64×64", 64]], () => {});
+    this._sizeSel = this._dropdown("Size", [["16×16", 16], ["32×32", 32], ["64×64", 64]], () => {});
     this._sizeSel.style.width = "auto";
     this._sizeSel.value = 32;
     ur.appendChild(this._sizeSel);
@@ -186,23 +186,23 @@ class IdotMatrixCard extends HTMLElement {
     gifInput.type = "file"; gifInput.accept = "image/gif"; gifInput.style.display = "none";
     gifInput.addEventListener("change", (e) => { if (e.target.files[0]) this._upload("upload_gif", e.target.files[0]); e.target.value = ""; });
     c.appendChild(imgInput); c.appendChild(gifInput);
-    ur.appendChild(this._btn("📷 Subir imagen", () => imgInput.click()));
-    ur.appendChild(this._btn("🎞 Subir GIF", () => gifInput.click(), "ghost"));
+    ur.appendChild(this._btn("📷 Upload image", () => imgInput.click()));
+    ur.appendChild(this._btn("🎞 Upload GIF", () => gifInput.click(), "ghost"));
 
     // Timers
-    sec("Cronómetro");
+    sec("Stopwatch");
     const cr = row();
     cr.appendChild(this._btn("▶", () => this._call("idotmatrix", "chronograph", { action: "start" }), "icon"));
     cr.appendChild(this._btn("⏸", () => this._call("idotmatrix", "chronograph", { action: "pause" }), "icon ghost"));
     cr.appendChild(this._btn("⟲", () => this._call("idotmatrix", "chronograph", { action: "reset" }), "icon ghost"));
 
-    sec("Cuenta regresiva");
+    sec("Countdown");
     const cdr = row();
     const min = this._num(5, 0, 59), sec2 = this._num(0, 0, 59);
     cdr.appendChild(min); const colon = document.createElement("span"); colon.textContent = ":"; cdr.appendChild(colon); cdr.appendChild(sec2);
-    cdr.appendChild(this._btn("Iniciar", () => this._call("idotmatrix", "countdown",
+    cdr.appendChild(this._btn("Start", () => this._call("idotmatrix", "countdown",
       { action: "start", minutes: Number(min.value), seconds: Number(sec2.value) })));
-    cdr.appendChild(this._btn("Detener", () => this._call("idotmatrix", "countdown", { action: "stop" }), "ghost"));
+    cdr.appendChild(this._btn("Stop", () => this._call("idotmatrix", "countdown", { action: "stop" }), "ghost"));
 
     this._statusEl = document.createElement("div");
     this._statusEl.className = "status";
@@ -214,7 +214,7 @@ class IdotMatrixCard extends HTMLElement {
 
   _refresh() {
     const st = this._hass?.states[this._config.entity];
-    if (st && this._powerBtn) this._powerBtn.textContent = st.state === "on" ? "Apagar" : "Encender";
+    if (st && this._powerBtn) this._powerBtn.textContent = st.state === "on" ? "Turn off" : "Turn on";
   }
 }
 

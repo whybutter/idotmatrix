@@ -28,9 +28,9 @@ const PAGE = 60;
 
 // Per-source attribution shown under the grid.
 const ATTRIBUTION: Record<string, string> = {
-  heaton: "Catálogo original de la app iDotMatrix",
-  openmoji: "Emojis por OpenMoji (CC BY-SA 4.0)",
-  poke: "Sprites de Pokémon © Nintendo / Game Freak — uso personal",
+  heaton: "Original iDotMatrix app catalog",
+  openmoji: "Emoji by OpenMoji (CC BY-SA 4.0)",
+  poke: "Pokémon sprites © Nintendo / Game Freak — personal use",
 };
 
 export function Explore({ device, available, notify }: Props) {
@@ -60,7 +60,7 @@ export function Explore({ device, available, notify }: Props) {
       })
       .catch((e) => {
         setSources([]);
-        setError("No se pudieron cargar las fuentes: " + (e as Error).message);
+        setError("Could not load sources: " + (e as Error).message);
       });
   }, []);
 
@@ -84,7 +84,7 @@ export function Explore({ device, available, notify }: Props) {
       .catch((e) => {
         if (!alive) return;
         setGroups([]);
-        setError("No se pudieron cargar las categorías: " + (e as Error).message);
+        setError("Could not load categories: " + (e as Error).message);
       });
     return () => {
       alive = false;
@@ -100,7 +100,7 @@ export function Explore({ device, available, notify }: Props) {
         setTotal(res.total);
         setItems((prev) => (replace ? res.items : [...prev, ...res.items]));
       } catch (e) {
-        setError("No se pudo cargar el catálogo: " + (e as Error).message);
+        setError("Could not load the catalog: " + (e as Error).message);
       } finally {
         setLoading(false);
       }
@@ -124,7 +124,7 @@ export function Explore({ device, available, notify }: Props) {
         <div className="idot-section-icon">
           <IconImage size={18} />
         </div>
-        <div className="idot-section-title">Explorar</div>
+        <div className="idot-section-title">Explore</div>
       </div>
 
       {/* Source selector */}
@@ -146,10 +146,10 @@ export function Explore({ device, available, notify }: Props) {
       {groups === null ? (
         <div className="idot-gallery-loading">
           <IconSpinner size={22} />
-          <span>Cargando categorías…</span>
+          <span>Loading categories…</span>
         </div>
       ) : groups.length === 0 ? (
-        <div className="idot-gallery-empty">No hay categorías disponibles.</div>
+        <div className="idot-gallery-empty">No categories available.</div>
       ) : (
         <div className="idot-chip-row">
           {groups.map((g) => (
@@ -170,10 +170,10 @@ export function Explore({ device, available, notify }: Props) {
       ) : items.length === 0 && loading ? (
         <div className="idot-gallery-loading">
           <IconSpinner size={26} />
-          <span>Cargando…</span>
+          <span>Loading…</span>
         </div>
       ) : items.length === 0 ? (
-        <div className="idot-gallery-empty">No hay elementos en esta categoría.</div>
+        <div className="idot-gallery-empty">No items in this category.</div>
       ) : (
         <>
           <div className="idot-catalog-grid">
@@ -200,7 +200,7 @@ export function Explore({ device, available, notify }: Props) {
                 source && group && loadPage(source, group, items.length, false)
               }
             >
-              Cargar más ({items.length} / {total})
+              Load more ({items.length} / {total})
             </button>
           )}
           {loading && items.length > 0 && (
@@ -247,8 +247,8 @@ function ActionSheet({
 }) {
   const hass = useHass();
   const [size, setSize] = useState<16 | 32 | 64>(32);
-  const send = useBusyAction((m) => notify("Enviar falló: " + m, true));
-  const save = useBusyAction((m) => notify("Guardar falló: " + m, true));
+  const send = useBusyAction((m) => notify("Send failed: " + m, true));
+  const save = useBusyAction((m) => notify("Save failed: " + m, true));
 
   const onSend = () =>
     send.run(async () => {
@@ -275,7 +275,7 @@ function ActionSheet({
         is_gif: item.is_gif,
         mime: item.is_gif ? "image/gif" : "image/png",
       });
-      notify("Guardado en la galería");
+      notify("Saved to gallery");
     });
 
   const busy = send.busy || save.busy;
@@ -287,7 +287,7 @@ function ActionSheet({
       </div>
 
       <div className="idot-field">
-        <label>Tamaño del panel</label>
+        <label>Panel size</label>
         <div className="idot-size-toggle">
           {([16, 32, 64] as const).map((s) => (
             <button
@@ -310,10 +310,10 @@ function ActionSheet({
         >
           {save.busy ? (
             <span className="idot-btn-status">
-              <IconSpinner /> &nbsp;Guardando…
+              <IconSpinner /> &nbsp;Saving…
             </span>
           ) : (
-            "Guardar en galería"
+            "Save to gallery"
           )}
         </button>
         <button
@@ -323,20 +323,20 @@ function ActionSheet({
           }
           onClick={onSend}
           disabled={busy || !available}
-          title={!available ? "El panel no está disponible" : ""}
+          title={!available ? "Panel is unavailable" : ""}
         >
           {send.busy ? (
             <span className="idot-btn-status">
               <IconSpinner /> &nbsp;Enviando…
             </span>
           ) : (
-            "Enviar al panel"
+            "Send to panel"
           )}
         </button>
       </div>
       {!available && (
         <p className="idot-hint" style={{ marginTop: 12, marginBottom: 0 }}>
-          El panel no está disponible — solo puedes guardar en la galería.
+          Panel is unavailable — you can only save to the gallery.
         </p>
       )}
     </Modal>
