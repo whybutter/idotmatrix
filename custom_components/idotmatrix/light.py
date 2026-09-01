@@ -622,6 +622,39 @@ def _prepare_gif(
 
     import io
 
+    from PIL import Image
+
+    # Quantise every frame against ONE palette built from the WHOLE animation,
+    # and write that palette as the GIF's global colour table.
+    #
+    # Left to itself, PIL derives the global colour table from the first frame
+    # and gives every later frame its own local colour table. The panel renders
+    # against the GLOBAL table and ignores the local ones, so an animation whose
+    # first frame is unrepresentative comes out wrong — and one that opens on a
+    # blank/black frame (a fade-in) yields a 2-4 colour global table and plays
+    # entirely BLACK on the panel while decoding perfectly in any GIF viewer.
+    # That was the "corrupt" burger animation in the catalog; nothing was wrong
+    # with the file.
+    #
+    # Passing `palette=` forces the shared table into the header and drops the
+    # per-frame tables entirely, which also makes the file ~25-45% smaller —
+    # welcome against the album storage budget.
+    strip = Image.new("RGB", (size, size * len(frames)))
+    for i, f in enumerate(frames):
+        strip.paste(f, (0, i * size))
+    palette = strip.quantize(colors=256, method=Image.MEDIANCUT)
+    global_palette = palette.palette.tobytes()
+    paletted = []
+    for f in frames:
+        # dither=NONE: these are pixel-art sprites on a 32x32 panel, where
+        # dithering reads as noise rather than as extra colour depth.
+        q = f.quantize(palette=palette, dither=Image.Dither.NONE)
+        # A transparency index inherited from the source breaks PIL's writer and
+        # means nothing here — every frame is already composited onto background.
+        q.info.pop("transparency", None)
+        q.info.pop("background", None)
+        paletted.append(q)
+
     def _encode(frames_, durations_) -> bytes:
         buf = io.BytesIO()
         frames_[0].save(
@@ -633,10 +666,11 @@ def _prepare_gif(
             loop=0,
             duration=durations_,
             disposal=2,
+            palette=global_palette,
         )
         return buf.getvalue()
 
-    encoded = _encode(frames, durations)
+    encoded = _encode(paletted, durations)
     if dwell_seconds <= 0:
         return encoded
 
@@ -652,7 +686,7 @@ def _prepare_gif(
     repeats = min(repeats, max(1, MAX_ALBUM_ASSET_BYTES // max(1, len(encoded))))
     if repeats <= 1:
         return encoded
-    return _encode(frames * repeats, durations * repeats)
+    return _encode(paletted * repeats, durations * repeats)
 
 
 # 16-wide x 32-tall glyph cell (matches the panel's 32px height). The separator
