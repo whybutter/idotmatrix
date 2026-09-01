@@ -55,7 +55,7 @@ class IdotMatrixScoreboardCard extends HTMLElement {
 
   _send() {
     if (this._timer) clearTimeout(this._timer);
-    this._status("Enviando…");
+    this._status("Sending…");
     this._timer = setTimeout(async () => {
       try {
         await this._hass.callService("idotmatrix", "scoreboard", {

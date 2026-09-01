@@ -341,7 +341,7 @@ function ActionSheet({
         >
           {send.busy ? (
             <span className="idot-btn-status">
-              <IconSpinner /> &nbsp;Enviando…
+              <IconSpinner /> &nbsp;Sending…
             </span>
           ) : (
             "Send to panel"

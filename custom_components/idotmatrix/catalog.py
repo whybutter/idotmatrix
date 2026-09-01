@@ -140,7 +140,7 @@ class PokeSource(CatalogSource):
         ("gen2", "Gen 2 · Johto", 152, 251),
         ("gen3", "Gen 3 · Hoenn", 252, 386),
         ("gen4", "Gen 4 · Sinnoh", 387, 493),
-        ("gen5", "Gen 5 · Teselia", 494, 649),
+        ("gen5", "Gen 5 · Unova", 494, 649),
         ("gen6", "Gen 6 · Kalos", 650, 721),
         ("gen7", "Gen 7 · Alola", 722, 809),
         ("gen8", "Gen 8 · Galar", 810, 905),

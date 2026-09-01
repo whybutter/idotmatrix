@@ -329,7 +329,7 @@ function EditModal({
       >
         {busy ? (
           <span className="idot-btn-status">
-            <IconSpinner /> &nbsp;Guardando…
+            <IconSpinner /> &nbsp;Saving…
           </span>
         ) : album ? (
           "Save changes"

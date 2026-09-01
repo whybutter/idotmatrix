@@ -130,8 +130,8 @@ class IdotMatrixCard extends HTMLElement {
     const sec = (t) => { const d = document.createElement("div"); d.className = "sec"; d.textContent = t; c.appendChild(d); };
     const row = (cls = "row") => { const r = document.createElement("div"); r.className = cls; c.appendChild(r); return r; };
 
-    // Pantalla
-    sec("Pantalla");
+    // Display
+    sec("Display");
     const r1 = row();
     this._powerBtn = this._btn("On/Off", () => {
       const on = this._hass.states[this._config.entity]?.state === "on";
@@ -152,12 +152,12 @@ class IdotMatrixCard extends HTMLElement {
       this._call("light", "turn_on", { brightness_pct: Number(bright.value) }));
     r1.appendChild(bright);
 
-    // Modos
-    sec("Modos");
+    // Modes
+    sec("Modes");
     const modes = row("grid3");
-    modes.appendChild(this._dropdown("Reloj", CLOCK_STYLES.map((n, i) => [n, i]),
+    modes.appendChild(this._dropdown("Clock", CLOCK_STYLES.map((n, i) => [n, i]),
       (v) => this._call("idotmatrix", "show_clock", { style: Number(v) })));
-    modes.appendChild(this._dropdown("Efecto", EFFECT_STYLES.map((n, i) => [n, i]),
+    modes.appendChild(this._dropdown("Effect", EFFECT_STYLES.map((n, i) => [n, i]),
       (v) => this._call("idotmatrix", "show_effect", { style: Number(v) })));
     modes.appendChild(this._dropdown("Mic", Object.entries(MIC_STYLES),
       (v) => this._call("idotmatrix", "mic_rhythm", { style: Number(v), sensitivity: 50 })));

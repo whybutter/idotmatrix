@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>iDotMatrix panel preview</title>
+<style>
+  /* Approximate HA's default (light) theme variables the panel relies on. */
+  :root {
+    --primary-color: #03a9f4;
+    --accent-color: #ff9800;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --text-primary-color: #ffffff;
+    --disabled-text-color: #bdbdbd;
+    --divider-color: rgba(0, 0, 0, .12);
+    --card-background-color: #ffffff;
+    --primary-background-color: #fafafa;
+    --secondary-background-color: #e5e5e5;
+    --ha-card-border-radius: 12px;
+    --error-color: #db4437;
+    --success-color: #43a047;
+    --warning-color: #ffa600;
+    --mdc-theme-primary: #03a9f4;
+  }
+  html, body { margin: 0; height: 100%; background: var(--primary-background-color);
+    font-family: Roboto, system-ui, sans-serif; }
+  idotmatrix-panel { display: block; height: 100%; }
+</style>
+</head>
+<body>
+<idotmatrix-panel></idotmatrix-panel>
+<script src="/idotmatrix-panel.js"></script>
+<script>
+(async () => {
+  const data = await (await fetch("/mock-data.json")).json();
+  const gallery = [...data.gallery];
+  const albums = [...data.albums];
+  let playing = null;
+
+  const states = {
+    "light.idm_c8a2bc": {
+      entity_id: "light.idm_c8a2bc",
+      state: "on",
+      attributes: {
+        friendly_name: "IDM-C8A2BC",
+        brightness: 255,
+        rgb_color: [124, 77, 255],
+        supported_color_modes: ["rgb"],
+      },
+    },
+  };
+
+  const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  const hass = {
+    states,
+    language: "en",
+    themes: { darkMode: false },
+    async callService(domain, service, data) { await delay(150); },
+    async callWS(msg) {
+      await delay(30);
+      switch (msg.type) {
+        case "config/entity_registry/list":
+          return [{ entity_id: "light.idm_c8a2bc", platform: "idotmatrix", device_id: "mock-device" }];
+        case "idotmatrix/gallery/list":
+          return { items: gallery };
+        case "idotmatrix/gallery/add": {
+          const item = { id: "g" + Date.now(), created: new Date().toISOString(), ...msg };
+          gallery.push(item);
+          return { item };
+        }
+        case "idotmatrix/gallery/delete": {
+          const ids = msg.ids || [msg.id];
+          for (const id of ids) {
+            const i = gallery.findIndex((g) => g.id === id);
+            if (i >= 0) gallery.splice(i, 1);
+          }
+          return { removed: ids.length };
+        }
+        case "idotmatrix/albums/list":
+          return { albums, playing_album_id: playing };
+        case "idotmatrix/albums/save": {
+          const album = { id: msg.album_id || "a" + Date.now(), name: msg.name,
+            item_ids: msg.item_ids, interval: msg.interval };
+          const i = albums.findIndex((a) => a.id === album.id);
+          if (i >= 0) albums[i] = album; else albums.push(album);
+          return { album };
+        }
+        case "idotmatrix/albums/delete": {
+          const i = albums.findIndex((a) => a.id === msg.album_id);
+          if (i >= 0) albums.splice(i, 1);
+          return {};
+        }
+        case "idotmatrix/albums/play": playing = msg.album_id; return {};
+        case "idotmatrix/albums/stop": playing = null; return {};
+        case "idotmatrix/catalog/sources":
+          return { sources: data.catalog.sources };
+        case "idotmatrix/catalog/groups":
+          return { groups: data.catalog.groups[msg.source] || [] };
+        case "idotmatrix/catalog/list": {
+          const all = data.catalog.items[msg.group] || [];
+          const off = msg.offset || 0;
+          return { items: all.slice(off, off + (msg.limit || 60)),
+                   total: data.catalog.totals[msg.group] || all.length };
+        }
+        default:
+          console.warn("unmocked WS call", msg);
+          return {};
+      }
+    },
+  };
+
+  const el = document.querySelector("idotmatrix-panel");
+  el.narrow = false;
+  el.panel = { config: {} };
+  el.route = { prefix: "/idotmatrix", path: "" };
+  el.hass = hass;
+  // HA re-sets hass constantly; a slow interval approximates that well enough.
+  setInterval(() => { el.hass = { ...hass }; }, 5000);
+})();
+</script>
+</body>
+</html>
