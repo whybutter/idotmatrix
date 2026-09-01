@@ -121,7 +121,7 @@ class IdotMatrixScoreboardCard extends HTMLElement {
     const foot = document.createElement("div");
     foot.className = "foot";
     const reset = document.createElement("button");
-    reset.className = "reset"; reset.textContent = "Reiniciar 0 : 0";
+    reset.className = "reset"; reset.textContent = "Reset 0 : 0";
     reset.addEventListener("click", () => this._reset());
     foot.appendChild(reset);
     wrap.appendChild(foot);

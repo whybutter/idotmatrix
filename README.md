@@ -20,6 +20,27 @@ Browsing the app's own cloud art catalog (plus OpenMoji and Pokémon sources):
 
 ![Explore view](docs/screenshots/panel-explore.png)
 
+<details>
+<summary><b>More views</b> — modals, catalog animations, multi-select, Lovelace cards</summary>
+
+| Upload from your PC | Catalog animations |
+|---|---|
+| ![Upload modal](docs/screenshots/panel-upload.png) | ![Animated catalog](docs/screenshots/panel-explore-animated.png) |
+
+| Catalog item → panel/gallery | Scoreboard |
+|---|---|
+| ![Item actions](docs/screenshots/panel-explore-item.png) | ![Scoreboard](docs/screenshots/panel-scoreboard.png) |
+
+| Timers | Gallery multi-select |
+|---|---|
+| ![Timers](docs/screenshots/panel-timers.png) | ![Select mode](docs/screenshots/panel-gallery-select.png) |
+
+| Device-side album playing | Lovelace cards |
+|---|---|
+| ![Album playing](docs/screenshots/panel-album-playing.png) | ![Cards](docs/screenshots/lovelace-cards.png) |
+
+</details>
+
 ## How it works
 
 This is a standard HA custom integration (`bleak` + HA's `bluetooth`

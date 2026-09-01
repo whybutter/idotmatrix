@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>iDotMatrix Lovelace cards preview</title>
+<style>
+  :root {
+    --primary-color: #03a9f4;
+    --accent-color: #ff9800;
+    --primary-text-color: #212121;
+    --secondary-text-color: #727272;
+    --text-primary-color: #ffffff;
+    --disabled-text-color: #bdbdbd;
+    --divider-color: rgba(0, 0, 0, .12);
+    --card-background-color: #ffffff;
+    --primary-background-color: #fafafa;
+    --secondary-background-color: #e5e5e5;
+    --ha-card-border-radius: 12px;
+    --error-color: #db4437;
+  }
+  html, body { margin: 0; background: var(--primary-background-color);
+    font-family: Roboto, system-ui, sans-serif; }
+  /* Stand-in for HA's <ha-card> so the cards render like in Lovelace. */
+  ha-card { display: block; background: var(--card-background-color);
+    border-radius: var(--ha-card-border-radius); padding: 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,.14); color: var(--primary-text-color); }
+  ha-card[header]::before { content: attr(header); display: block;
+    font-size: 22px; font-weight: 400; padding: 4px 0 12px; }
+  .wrap { max-width: 420px; margin: 24px auto; display: flex;
+    flex-direction: column; gap: 24px; padding: 0 16px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <idotmatrix-card id="control"></idotmatrix-card>
+  <idotmatrix-scoreboard-card id="score"></idotmatrix-scoreboard-card>
+</div>
+<!-- type=module matches how HA loads extra frontend JS (module scope avoids
+     top-level const collisions between the two cards). -->
+<script type="module" src="/idotmatrix-card.js"></script>
+<script type="module" src="/idotmatrix-scoreboard-card.js"></script>
+<script type="module">
+  const hass = {
+    states: {
+      "light.idm_c8a2bc": {
+        entity_id: "light.idm_c8a2bc",
+        state: "on",
+        attributes: { friendly_name: "IDM-C8A2BC", brightness: 255 },
+      },
+    },
+    async callService() {},
+  };
+  const control = document.getElementById("control");
+  control.setConfig({ entity: "light.idm_c8a2bc" });
+  control.hass = hass;
+  const score = document.getElementById("score");
+  score.setConfig({ entity: "light.idm_c8a2bc" });
+  score.hass = hass;
+</script>
+</body>
+</html>

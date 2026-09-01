@@ -119,8 +119,21 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(self.path.split("?")[0])
         if path == "/":
             self._send((HERE / "preview.html").read_bytes(), "text/html; charset=utf-8")
+        elif path.endswith(".html") and (HERE / path.lstrip("/")).is_file():
+            # Extra preview pages (cards, marketing shots) living next to this file.
+            self._send((HERE / path.lstrip("/")).read_bytes(), "text/html; charset=utf-8")
+        elif path in ("/idotmatrix-card.js", "/idotmatrix-scoreboard-card.js"):
+            f = HERE.parent.parent / "custom_components" / "idotmatrix" / "frontend" / path.lstrip("/")
+            self._send(f.read_bytes(), "application/javascript")
         elif path == "/idotmatrix-panel.js":
             self._send(_bundle_path().read_bytes(), "application/javascript")
+        elif path.startswith("/shots/"):
+            # Captured screenshots, for composing marketing/hero pages.
+            f = HERE.parent.parent / "docs" / "screenshots" / Path(path).name
+            if f.is_file():
+                self._send(f.read_bytes(), "image/png")
+            else:
+                self._send(b"not found", "text/plain", 404)
         elif path == "/mock-data.json":
             self._send(json.dumps(build_mock_data()).encode(), "application/json")
         elif path.startswith("/api/idotmatrix/catalog/img/"):
