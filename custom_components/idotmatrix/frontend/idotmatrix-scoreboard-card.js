@@ -4,8 +4,8 @@
  * Config:
  *   type: custom:idotmatrix-scoreboard-card
  *   entity: light.<your idotmatrix light>
- *   home: "Local"        # optional labels
- *   away: "Visitante"
+ *   home: "Home"        # optional labels
+ *   away: "Away"
  *
  * Both counts travel in every frame, so any change sends {count1, count2}
  * (debounced). Values clamp 0-999.
@@ -103,7 +103,7 @@ class IdotMatrixScoreboardCard extends HTMLElement {
   _build() {
     this._built = true;
     const card = document.createElement("ha-card");
-    card.header = this._config.title || "Marcador";
+    card.header = this._config.title || "Scoreboard";
     const style = document.createElement("style");
     style.textContent = STYLES;
     card.appendChild(style);
@@ -111,11 +111,11 @@ class IdotMatrixScoreboardCard extends HTMLElement {
     wrap.className = "sb";
     const teams = document.createElement("div");
     teams.className = "teams";
-    teams.appendChild(this._team("home", this._config.home || "Local", 1));
+    teams.appendChild(this._team("home", this._config.home || "Home", 1));
     const colon = document.createElement("div");
     colon.className = "colon"; colon.textContent = ":";
     teams.appendChild(colon);
-    teams.appendChild(this._team("away", this._config.away || "Visitante", 2));
+    teams.appendChild(this._team("away", this._config.away || "Away", 2));
     wrap.appendChild(teams);
 
     const foot = document.createElement("div");

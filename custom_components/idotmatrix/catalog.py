@@ -59,15 +59,15 @@ class OpenMojiSource(CatalogSource):
     META_URL = "https://cdn.jsdelivr.net/npm/openmoji@15.0.0/data/openmoji.json"
     IMG_URL = "https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@master/color/72x72/{hex}.png"
     GROUPS = {
-        "smileys-emotion": "Caritas y emociones",
-        "people-body": "Personas",
-        "animals-nature": "Animales y naturaleza",
-        "food-drink": "Comida y bebida",
-        "travel-places": "Viajes y lugares",
-        "activities": "Actividades",
-        "objects": "Objetos",
-        "symbols": "Símbolos",
-        "flags": "Banderas",
+        "smileys-emotion": "Smileys & emotion",
+        "people-body": "People",
+        "animals-nature": "Animals & nature",
+        "food-drink": "Food & drink",
+        "travel-places": "Travel & places",
+        "activities": "Activities",
+        "objects": "Objects",
+        "symbols": "Symbols",
+        "flags": "Flags",
     }
 
     def __init__(self, hass: HomeAssistant) -> None:
@@ -226,7 +226,7 @@ class PokeSource(CatalogSource):
 # --------------------------------------------------------------------------- #
 class HeatonSource(CatalogSource):
     id = "heaton"
-    name = "Catálogo app"
+    name = "App catalog"
 
     API_URL = "https://manage.heaton.com.cn/api/rm/getMaterialUnderCategory"
     APP_KEY = "Jy47rzJAgKMfrcc92PamyyukQqB7wmFu"
@@ -235,16 +235,16 @@ class HeatonSource(CatalogSource):
     # are categorised by tab as "<tab>_IDM"; the key is label="ALL" (label
     # "Product_" only returns the flat generic bucket). 5 tabs × {image, gif}.
     GROUPS = [
-        ("img_daily", "Imágenes · Diario", "日常_IDM", "图片", False),
-        ("img_holiday", "Imágenes · Festivos", "节日_IDM", "图片", False),
-        ("img_emoji", "Imágenes · Emojis", "表情_IDM", "图片", False),
-        ("img_creative", "Imágenes · Creativo", "创意_IDM", "图片", False),
-        ("img_business", "Imágenes · Negocios", "商业_IDM", "图片", False),
-        ("ani_daily", "Animados · Diario", "日常_IDM", "动画", True),
-        ("ani_holiday", "Animados · Festivos", "节日_IDM", "动画", True),
-        ("ani_emoji", "Animados · Emojis", "表情_IDM", "动画", True),
-        ("ani_creative", "Animados · Creativo", "创意_IDM", "动画", True),
-        ("ani_business", "Animados · Negocios", "商业_IDM", "动画", True),
+        ("img_daily", "Images · Daily", "日常_IDM", "图片", False),
+        ("img_holiday", "Images · Holidays", "节日_IDM", "图片", False),
+        ("img_emoji", "Images · Emoji", "表情_IDM", "图片", False),
+        ("img_creative", "Images · Creative", "创意_IDM", "图片", False),
+        ("img_business", "Images · Business", "商业_IDM", "图片", False),
+        ("ani_daily", "Animated · Daily", "日常_IDM", "动画", True),
+        ("ani_holiday", "Animated · Holidays", "节日_IDM", "动画", True),
+        ("ani_emoji", "Animated · Emoji", "表情_IDM", "动画", True),
+        ("ani_creative", "Animated · Creative", "创意_IDM", "动画", True),
+        ("ani_business", "Animated · Business", "商业_IDM", "动画", True),
     ]
     # The catalog is authored per asset-size; 32×32 has the richest set. We list
     # at 32 and resize on send to whatever size the user picks.

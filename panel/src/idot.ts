@@ -220,7 +220,7 @@ export async function albumsStop(hass: Hass, entityId: string): Promise<void> {
   await hass.callWS({ type: "idotmatrix/albums/stop", entity_id: entityId });
 }
 
-/* ---------------- Online catalog (Explorar) ---------------- */
+/* ---------------- Online catalog (Explore) ---------------- */
 
 export async function catalogSources(hass: Hass): Promise<CatalogSource[]> {
   const res = await hass.callWS<{ sources: CatalogSource[] }>({

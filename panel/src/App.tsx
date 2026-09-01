@@ -218,7 +218,7 @@ export function App() {
             role="tab"
             aria-selected={view === "home"}
           >
-            Inicio
+            Home
           </button>
           <button
             className={"idot-tab" + (view === "gallery" ? " active" : "")}
@@ -242,7 +242,7 @@ export function App() {
             role="tab"
             aria-selected={view === "explore"}
           >
-            Explorar
+            Explore
           </button>
         </div>
 

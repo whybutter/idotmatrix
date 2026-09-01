@@ -282,7 +282,7 @@ function EditModal({
       </div>
 
       <div className="idot-field">
-        <label>Intervalo: {interval}s</label>
+        <label>Interval: {interval}s</label>
         <input
           type="range"
           className="idot-slider"
