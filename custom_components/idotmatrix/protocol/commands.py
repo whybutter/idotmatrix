@@ -95,7 +95,13 @@ def effect(style: int, colors: list[tuple[int, int, int]]) -> bytes:
         raise ValueError("effect needs 2-7 colors")
     body = bytearray([0x06 + len(colors), 0x00, 0x03, 0x02, style % 256, 0x90, len(colors)])
     for r, g, b in colors:
-        body += bytes([r % 256, g % 256, b % 256])
+        # The effect command carries RGB in a 0..127 range that the firmware
+        # expands x2 to 0..255 — unlike solid-color/clock, which are full 8-bit.
+        # So halve the (already colour-corrected) 0..255 values to hit the wire
+        # range; sending 0..255 here overdrives every channel. Source: the
+        # piggei/IDotMatrix-ESP32-Emulator captures (their inference, still to be
+        # confirmed on our hardware — hence a separate PR).
+        body += bytes([(r % 256) >> 1, (g % 256) >> 1, (b % 256) >> 1])
     return bytes(body)
 
 
