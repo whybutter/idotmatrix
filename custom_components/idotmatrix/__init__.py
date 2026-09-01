@@ -8,14 +8,21 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.loader import async_get_integration
 
 from .availability import IdotMatrixAvailability
 from .client import IdotMatrixClient
 from .const import (
     CONF_GAMMA,
     CONF_PREFERRED_PROXY,
+    CONF_WB_BLUE,
+    CONF_WB_GREEN,
+    CONF_WB_RED,
     DEFAULT_GAMMA,
     DEFAULT_MIC_SENSITIVITY,
+    DEFAULT_WB_BLUE,
+    DEFAULT_WB_GREEN,
+    DEFAULT_WB_RED,
     DOMAIN,
     PROXY_AUTO,
 )
@@ -50,9 +57,15 @@ class IdotMatrixData:
     client: IdotMatrixClient
     availability: IdotMatrixAvailability
     device_name: str
-    # Display gamma for this panel (see CONF_GAMMA). The entry reloads on an
-    # options change, so this is always the current value.
-    gamma: float = DEFAULT_GAMMA
+    # Colour correction for this panel: (gamma, wb_red, wb_green, wb_blue).
+    # See CONF_GAMMA / CONF_WB_RED in const.py. The entry reloads on an options
+    # change, so this is always the current value.
+    correction: tuple[float, float, float, float] = (
+        DEFAULT_GAMMA,
+        DEFAULT_WB_RED,
+        DEFAULT_WB_GREEN,
+        DEFAULT_WB_BLUE,
+    )
     state: IdotMatrixState = field(default_factory=IdotMatrixState)
 
 
@@ -81,6 +94,17 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     from .catalog import async_register as async_register_catalog
 
     async_register_catalog(hass)
+    # Cache-busting: the static routes are served without a Cache-Control header,
+    # so browsers (and the HA frontend service worker) will happily keep serving a
+    # previously fetched bundle after an update — the panel then still shows the
+    # OLD JS until a manual hard refresh. Appending the integration version to the
+    # *referenced* URL changes it on every release, which forces a real fetch.
+    # The static ROUTES stay at the bare paths; query strings don't affect routing.
+    version = (await async_get_integration(hass, DOMAIN)).version or "dev"
+    card_url = f"{CARD_URL}?v={version}"
+    scoreboard_url = f"{SCOREBOARD_CARD_URL}?v={version}"
+    panel_url = f"{PANEL_URL}?v={version}"
+
     fdir = os.path.join(os.path.dirname(__file__), "frontend")
     await hass.http.async_register_static_paths(
         [
@@ -95,8 +119,8 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
     )
     from homeassistant.components.frontend import add_extra_js_url
 
-    add_extra_js_url(hass, CARD_URL)
-    add_extra_js_url(hass, SCOREBOARD_CARD_URL)
+    add_extra_js_url(hass, card_url)
+    add_extra_js_url(hass, scoreboard_url)
 
     from homeassistant.components import panel_custom
 
@@ -105,7 +129,7 @@ async def _async_register_frontend(hass: HomeAssistant) -> None:
             hass,
             frontend_url_path=DOMAIN,
             webcomponent_name="idotmatrix-panel",
-            js_url=PANEL_URL,
+            js_url=panel_url,
             sidebar_title="iDotMatrix",
             sidebar_icon="mdi:view-grid-plus",
             require_admin=False,
@@ -131,7 +155,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -
         client=client,
         availability=availability,
         device_name=entry.title,
-        gamma=entry.options.get(CONF_GAMMA, DEFAULT_GAMMA),
+        correction=(
+            entry.options.get(CONF_GAMMA, DEFAULT_GAMMA),
+            entry.options.get(CONF_WB_RED, DEFAULT_WB_RED),
+            entry.options.get(CONF_WB_GREEN, DEFAULT_WB_GREEN),
+            entry.options.get(CONF_WB_BLUE, DEFAULT_WB_BLUE),
+        ),
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))

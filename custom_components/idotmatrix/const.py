@@ -24,6 +24,28 @@ DEFAULT_GAMMA = 2.2
 MIN_GAMMA = 1.0
 MAX_GAMMA = 3.0
 
+# Per-channel white balance, applied AFTER gamma (i.e. in linear light).
+# The panel's blue LEDs are far brighter than its red ones, so neutral greys and
+# whites come out distinctly blue and every mixed colour is pulled toward cyan —
+# this is what makes a picked colour not match what appears on the panel.
+#
+# Measured against a neutral grey wall in the SAME camera frame (so the camera's
+# own exposure/white balance cancels out), at three grey levels:
+#   uncorrected            panel/wall blue ratio 1.52 - 1.62  (should be 1.00)
+#   R=1.00 G=0.93 B=0.32   panel/wall blue ratio 1.04 - 1.06, green 0.98 - 0.99
+# The blue gain is aggressive because the imbalance is genuinely that large.
+#
+# These come from a webcam, not a colorimeter, so treat them as a good default
+# rather than a calibration — they are exposed as options for tuning by eye.
+CONF_WB_RED = "wb_red"
+CONF_WB_GREEN = "wb_green"
+CONF_WB_BLUE = "wb_blue"
+DEFAULT_WB_RED = 1.0
+DEFAULT_WB_GREEN = 0.93
+DEFAULT_WB_BLUE = 0.32
+MIN_WB = 0.1
+MAX_WB = 1.0
+
 # BLE identifiers, from the community reverse engineering of the official app
 # (derkalle4/python3-idotmatrix-library and its maintained forks).
 LOCAL_NAME_PREFIX = "IDM-"

@@ -21,11 +21,19 @@ from homeassistant.core import callback
 from .const import (
     CONF_GAMMA,
     CONF_PREFERRED_PROXY,
+    CONF_WB_BLUE,
+    CONF_WB_GREEN,
+    CONF_WB_RED,
     DEFAULT_GAMMA,
+    DEFAULT_WB_BLUE,
+    DEFAULT_WB_GREEN,
+    DEFAULT_WB_RED,
     DOMAIN,
     LOCAL_NAME_PREFIX,
     MAX_GAMMA,
+    MAX_WB,
     MIN_GAMMA,
+    MIN_WB,
     PROXY_AUTO,
 )
 
@@ -126,15 +134,27 @@ class IdotMatrixOptionsFlow(OptionsFlow):
         if current not in options:
             options[current] = current
 
-        gamma = self.config_entry.options.get(CONF_GAMMA, DEFAULT_GAMMA)
+        opts = self.config_entry.options
+        wb = vol.All(vol.Coerce(float), vol.Range(min=MIN_WB, max=MAX_WB))
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_PREFERRED_PROXY, default=current): vol.In(options),
-                    vol.Required(CONF_GAMMA, default=gamma): vol.All(
+                    vol.Required(
+                        CONF_GAMMA, default=opts.get(CONF_GAMMA, DEFAULT_GAMMA)
+                    ): vol.All(
                         vol.Coerce(float), vol.Range(min=MIN_GAMMA, max=MAX_GAMMA)
                     ),
+                    vol.Required(
+                        CONF_WB_RED, default=opts.get(CONF_WB_RED, DEFAULT_WB_RED)
+                    ): wb,
+                    vol.Required(
+                        CONF_WB_GREEN, default=opts.get(CONF_WB_GREEN, DEFAULT_WB_GREEN)
+                    ): wb,
+                    vol.Required(
+                        CONF_WB_BLUE, default=opts.get(CONF_WB_BLUE, DEFAULT_WB_BLUE)
+                    ): wb,
                 }
             ),
         )

@@ -41,7 +41,6 @@ from .const import (
     CLOCK_STYLES,
     COUNTDOWN_ACTIONS,
     DEFAULT_EFFECT_COLORS,
-    DEFAULT_GAMMA,
     DEFAULT_GIF_FRAME_MS,
     DEFAULT_MIC_SENSITIVITY,
     DEFAULT_PANEL_SIZE,
@@ -74,6 +73,58 @@ _RGB = vol.All(
 )
 
 
+# (gamma, wb_red, wb_green, wb_blue) for the panel's colour correction.
+Correction = tuple[float, float, float, float]
+
+NO_CORRECTION: Correction = (1.0, 1.0, 1.0, 1.0)
+
+
+@lru_cache(maxsize=8)
+def _correction_lut(correction: Correction) -> tuple[int, ...]:
+    """768-entry per-channel LUT: sRGB in, panel-ready bytes out.
+
+    Two corrections, in this order, because they live in different spaces:
+
+    1. Gamma — `255 * (v/255) ** gamma` — converts the sRGB-encoded source into
+       the near-linear space the panel's PWM actually works in. See CONF_GAMMA.
+    2. White balance — a per-channel gain applied to that LINEAR value, because
+       the panel's blue LEDs emit far more light per unit than its red ones.
+       See CONF_WB_RED and friends.
+
+    Cached: otherwise this is rebuilt for every frame of every GIF.
+    """
+    gamma, *gains = correction
+    return tuple(
+        min(255, round(255 * ((i / 255) ** gamma) * gain))
+        for gain in gains
+        for i in range(256)
+    )
+
+
+def _is_identity(correction: Correction) -> bool:
+    return all(abs(v - 1.0) < 1e-3 for v in correction)
+
+
+def _apply_correction(img, correction: Correction):
+    """Colour-correct an RGB image for the panel. Identity is a no-op."""
+    if _is_identity(correction):
+        return img
+    return img.point(_correction_lut(correction))
+
+
+def _correct_rgb(
+    rgb: tuple[int, int, int], correction: Correction
+) -> tuple[int, int, int]:
+    """Colour-correct a single colour, so a colour the user picks lands on the
+    panel the same way that colour would inside an uploaded image. Without this
+    the picker and the image pipeline disagree, and solid colours come out
+    washed out and blue."""
+    if _is_identity(correction):
+        return tuple(rgb)
+    lut = _correction_lut(correction)
+    return tuple(lut[256 * ch + max(0, min(255, int(v)))] for ch, v in enumerate(rgb))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: IdotMatrixConfigEntry,
@@ -81,7 +132,11 @@ async def async_setup_entry(
 ) -> None:
     data = entry.runtime_data
     async_add_entities(
-        [IdotMatrixLight(data.client, data.availability, data.device_name, data.gamma)]
+        [
+            IdotMatrixLight(
+                data.client, data.availability, data.device_name, data.correction
+            )
+        ]
     )
 
     platform = entity_platform.async_get_current_platform()
@@ -204,10 +259,14 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     _attr_assumed_state = True  # panel state can't be read back
 
     def __init__(
-        self, client, availability, device_name: str, gamma: float = DEFAULT_GAMMA
+        self,
+        client,
+        availability,
+        device_name: str,
+        correction: Correction = NO_CORRECTION,
     ) -> None:
         super().__init__(client, availability, device_name, "light")
-        self._gamma = gamma
+        self._correction = correction
         self._attr_rgb_color = (255, 255, 255)
         self._attr_brightness = 255
 
@@ -220,7 +279,11 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
             await self._run(self._client.set_brightness_pct(pct))
             self._attr_brightness = ha_brightness
         if (rgb := kwargs.get("rgb_color")) is not None:
-            await self._run(self._client.fullscreen_color(*rgb))
+            # Correct what goes on the wire, but keep the colour the user asked
+            # for in HA state, so the UI still shows their pick.
+            await self._run(
+                self._client.fullscreen_color(*_correct_rgb(rgb, self._correction))
+            )
             self._attr_rgb_color = rgb
         else:
             await self._run(self._client.turn_on())
@@ -237,7 +300,7 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     ) -> None:
         raw = await self._resolve_source(file_path, image_data)
         pixel_bytes = await self.hass.async_add_executor_job(
-            _prepare_pixels, raw, size, (0, 0, 0), self._gamma
+            _prepare_pixels, raw, size, (0, 0, 0), self._correction
         )
         await self._run(self._client.upload_image(pixel_bytes))
 
@@ -246,7 +309,7 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     ) -> None:
         raw = await self._resolve_source(file_path, image_data)
         gif_bytes = await self.hass.async_add_executor_job(
-            _prepare_gif, raw, size, (0, 0, 0), self._gamma
+            _prepare_gif, raw, size, (0, 0, 0), self._correction
         )
         await self._run(self._client.upload_gif(gif_bytes))
 
@@ -294,14 +357,16 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
                 mode_int,
                 speed,
                 cmode_int,
-                tuple(rgb_color),
+                _correct_rgb(rgb_color, self._correction),
                 bg_mode,
-                tuple(bg_color) if bg_color else (0, 0, 0),
+                _correct_rgb(bg_color, self._correction) if bg_color else (0, 0, 0),
             )
         )
 
     async def async_fullscreen_color(self, rgb_color: tuple[int, int, int]) -> None:
-        await self._run(self._client.fullscreen_color(*rgb_color))
+        await self._run(
+            self._client.fullscreen_color(*_correct_rgb(rgb_color, self._correction))
+        )
 
     async def async_show_clock(
         self,
@@ -312,7 +377,9 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     ) -> None:
         style_int = CLOCK_STYLES.get(style, style) if isinstance(style, str) else style
         await self._run(
-            self._client.show_clock(style_int, show_date, hour24, *rgb_color)
+            self._client.show_clock(
+                style_int, show_date, hour24, *_correct_rgb(rgb_color, self._correction)
+            )
         )
 
     async def async_show_effect(
@@ -321,7 +388,11 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         style_int = (
             EFFECT_STYLES.get(style, style) if isinstance(style, str) else style
         )
-        await self._run(self._client.show_effect(style_int, colors))
+        await self._run(
+            self._client.show_effect(
+                style_int, [_correct_rgb(c, self._correction) for c in colors]
+            )
+        )
 
     async def async_chronograph(self, action: str) -> None:
         await self._run(self._client.chronograph(CHRONOGRAPH_ACTIONS[action]))
@@ -397,29 +468,11 @@ def _fit_rgb(img, size, background, pixel_art, crop_box=None, square_side=None):
     return rgb
 
 
-@lru_cache(maxsize=8)
-def _gamma_lut(gamma: float) -> tuple[int, ...]:
-    """256-entry LUT for `out = 255 * (in/255) ** gamma`, tripled for RGB.
-
-    See CONF_GAMMA in const.py for why this is needed and how 2.2 was chosen.
-    Cached because it is rebuilt per frame of every GIF otherwise.
-    """
-    ramp = tuple(min(255, round(255 * ((i / 255) ** gamma))) for i in range(256))
-    return ramp * 3
-
-
-def _apply_gamma(img, gamma: float):
-    """Linearise an RGB image for the panel. gamma == 1.0 is a no-op."""
-    if abs(gamma - 1.0) < 1e-3:
-        return img
-    return img.point(_gamma_lut(gamma))
-
-
 def _prepare_pixels(
     raw: bytes,
     size: int,
     background: tuple[int, int, int] = (0, 0, 0),
-    gamma: float = DEFAULT_GAMMA,
+    correction: Correction = NO_CORRECTION,
 ) -> bytes:
     """Normalize any input image (raw file bytes) to the panel's raw pixel bytes
     (blocking; run in executor).
@@ -446,7 +499,7 @@ def _prepare_pixels(
             # Transparent art (emoji, icons): trim the margin, pad to square, and
             # flatten onto the background so it fills the panel.
             rgb = _fit_rgb(img, size, background, pixel_art=False)
-        return _apply_gamma(rgb, gamma).tobytes()
+        return _apply_correction(rgb, correction).tobytes()
 
 
 def _prepare_still_as_gif(
@@ -454,7 +507,7 @@ def _prepare_still_as_gif(
     size: int,
     dwell_seconds: int,
     background: tuple[int, int, int] = (0, 0, 0),
-    gamma: float = DEFAULT_GAMMA,
+    correction: Correction = NO_CORRECTION,
 ) -> bytes:
     """Normalize a still image into a single-frame encoded GIF, for album use.
 
@@ -480,7 +533,7 @@ def _prepare_still_as_gif(
     """
     import io
 
-    pixels = _prepare_pixels(raw, size, background, gamma)
+    pixels = _prepare_pixels(raw, size, background, correction)
 
     from PIL import Image
 
@@ -504,7 +557,7 @@ def _prepare_gif(
     raw: bytes,
     size: int,
     background: tuple[int, int, int] = (0, 0, 0),
-    gamma: float = DEFAULT_GAMMA,
+    correction: Correction = NO_CORRECTION,
     dwell_seconds: int = 0,
 ) -> bytes:
     """Normalize any GIF (raw file bytes) to an encoded GIF sized to the panel
@@ -557,9 +610,9 @@ def _prepare_gif(
             union = (0, 0, raw_frames[0].width, raw_frames[0].height)
         side = max(union[2] - union[0], union[3] - union[1], 1)
         frames = [
-            _apply_gamma(
+            _apply_correction(
                 _fit_rgb(f, size, background, True, crop_box=union, square_side=side),
-                gamma,
+                correction,
             )
             for f in raw_frames
         ]

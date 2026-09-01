@@ -21,7 +21,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.storage import Store
 
-from .const import CONF_GAMMA, DEFAULT_GAMMA, DOMAIN
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class SlideshowManager:
         if client is None:
             raise ValueError("device not found for entity")
         entry = self._hass.config_entries.async_get_entry(entry_id)
-        gamma = entry.options.get(CONF_GAMMA, DEFAULT_GAMMA) if entry else DEFAULT_GAMMA
+        correction = entry.runtime_data.correction
         items = [
             gallery_items[i] for i in album.get("item_ids", []) if i in gallery_items
         ]
@@ -124,11 +124,11 @@ class SlideshowManager:
             size = int(item.get("size", 32))
             if item.get("is_gif"):
                 gif = await self._hass.async_add_executor_job(
-                    _prepare_gif, raw, size, (0, 0, 0), gamma, dwell
+                    _prepare_gif, raw, size, (0, 0, 0), correction, dwell
                 )
             else:
                 gif = await self._hass.async_add_executor_job(
-                    _prepare_still_as_gif, raw, size, dwell, (0, 0, 0), gamma
+                    _prepare_still_as_gif, raw, size, dwell, (0, 0, 0), correction
                 )
             # byte[15] = album slot index (0-based), NOT 0xFF.
             block_lists.append(protocol.build_gif_upload(gif, index, time_key))
