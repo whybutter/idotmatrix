@@ -161,7 +161,9 @@ class IdotMatrixClient:
         """Switch the panel to its stored-asset carousel without re-uploading."""
         await self._write(protocol.enter_asset_view())
 
-    async def draw_pixels(self, frames: list[bytes]) -> None:
+    async def draw_pixels(
+        self, frames: list[bytes], pace: float = BULK_WRITE_PACE_SECONDS
+    ) -> None:
         """Stream pre-built graffiti frames, fast.
 
         Unlike _write, this paces at BULK_WRITE_PACE_SECONDS (20 ms) instead of
@@ -175,7 +177,7 @@ class IdotMatrixClient:
                 client = await self._ensure_connected()
                 for frame in frames:
                     await client.write_gatt_char(WRITE_CHAR_UUID, frame, response=False)
-                    await asyncio.sleep(BULK_WRITE_PACE_SECONDS)
+                    await asyncio.sleep(max(pace, BULK_WRITE_PACE_SECONDS))
             except (BleakError, TimeoutError) as err:
                 raise IdotMatrixError(
                     f"Pixel draw on {self._address} failed: {err}"

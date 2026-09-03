@@ -29,6 +29,8 @@ from .const import (
     ATTR_MINUTES,
     ATTR_PIXELS,
     ATTR_CLEAR,
+    ATTR_CHUNK,
+    ATTR_PACE_MS,
     ATTR_MODE,
     ATTR_RGB_COLOR,
     ATTR_SECONDS,
@@ -294,6 +296,15 @@ async def async_setup_entry(
         {
             vol.Required(ATTR_PIXELS): vol.All(_PIXEL_LIST, vol.Length(min=1, max=1024)),
             vol.Optional(ATTR_CLEAR, default=False): cv.boolean,
+            # Animation controls: pixels per BLE frame and delay between frames.
+            # chunk=100/pace=20 paints near-instantly; chunk=8/pace=80 shows a
+            # visible progressive stroke.
+            vol.Optional(ATTR_CHUNK, default=100): vol.All(
+                vol.Coerce(int), vol.Range(1, 100)
+            ),
+            vol.Optional(ATTR_PACE_MS, default=20): vol.All(
+                vol.Coerce(int), vol.Range(5, 500)
+            ),
         },
         "async_draw_pixels",
     )
@@ -453,7 +464,9 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
     async def async_stop_rhythm(self) -> None:
         await self._run(self._client.stop_rhythm())
 
-    async def async_draw_pixels(self, pixels: list, clear: bool = False) -> None:
+    async def async_draw_pixels(
+        self, pixels: list, clear: bool = False, chunk: int = 100, pace_ms: int = 20
+    ) -> None:
         """Live-draw pixels in order (graffiti). Consecutive same-color pixels
         are batched into one multi-pixel frame so a stroke lands in one write;
         order is preserved so the drawing appears progressively."""
@@ -466,8 +479,8 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
 
         def _flush() -> None:
             if run_color is not None and run:
-                for i in range(0, len(run), 100):
-                    frames.append(protocol.graffiti(*run_color, run[i : i + 100]))
+                for i in range(0, len(run), chunk):
+                    frames.append(protocol.graffiti(*run_color, run[i : i + chunk]))
 
         for entry in pixels:
             x, y, color = entry
@@ -477,7 +490,7 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
                 run_color, run = corrected, []
             run.append((x, y))
         _flush()
-        await self._run(self._client.draw_pixels(frames))
+        await self._run(self._client.draw_pixels(frames, pace=pace_ms / 1000))
 
     async def async_chronograph(self, action: str) -> None:
         await self._run(self._client.chronograph(CHRONOGRAPH_ACTIONS[action]))

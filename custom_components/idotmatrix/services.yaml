@@ -404,3 +404,21 @@ draw_pixels:
       default: false
       selector:
         boolean:
+    chunk:
+      name: Pixels per frame
+      description: How many same-color pixels are painted at once. Lower values make the stroke visibly progressive.
+      required: false
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 100
+    pace_ms:
+      name: Frame delay (ms)
+      description: Delay between frames. Higher values slow the drawing down into an animation.
+      required: false
+      default: 20
+      selector:
+        number:
+          min: 5
+          max: 500
