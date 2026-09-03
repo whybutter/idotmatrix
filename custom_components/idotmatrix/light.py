@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+
+import aiohttp
 from typing import Any
 
 import voluptuous as vol
@@ -26,6 +28,7 @@ from .const import (
     ATTR_FILE_PATH,
     ATTR_HOUR24,
     ATTR_IMAGE_DATA,
+    ATTR_IMAGE_URL,
     ATTR_MINUTES,
     ATTR_PIXELS,
     ATTR_CLEAR,
@@ -178,6 +181,7 @@ async def async_setup_entry(
     _upload_schema = {
         vol.Optional(ATTR_FILE_PATH): cv.string,
         vol.Optional(ATTR_IMAGE_DATA): cv.string,
+        vol.Optional(ATTR_IMAGE_URL): cv.string,
         vol.Optional(ATTR_SIZE, default=DEFAULT_PANEL_SIZE): vol.All(
             vol.Coerce(int), vol.In(PANEL_SIZES)
         ),
@@ -357,28 +361,40 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
         self.async_write_ha_state()
 
     async def async_upload_image(
-        self, size: int, file_path: str | None = None, image_data: str | None = None
+        self,
+        size: int,
+        file_path: str | None = None,
+        image_data: str | None = None,
+        image_url: str | None = None,
     ) -> None:
-        raw = await self._resolve_source(file_path, image_data)
+        raw = await self._resolve_source(file_path, image_data, image_url)
         pixel_bytes = await self.hass.async_add_executor_job(
             _prepare_pixels, raw, size, (0, 0, 0), self._correction
         )
         await self._run(self._client.upload_image(pixel_bytes))
 
     async def async_upload_gif(
-        self, size: int, file_path: str | None = None, image_data: str | None = None
+        self,
+        size: int,
+        file_path: str | None = None,
+        image_data: str | None = None,
+        image_url: str | None = None,
     ) -> None:
-        raw = await self._resolve_source(file_path, image_data)
+        raw = await self._resolve_source(file_path, image_data, image_url)
         gif_bytes = await self.hass.async_add_executor_job(
             _prepare_gif, raw, size, (0, 0, 0), self._correction
         )
         await self._run(self._client.upload_gif(gif_bytes))
 
     async def _resolve_source(
-        self, file_path: str | None, image_data: str | None
+        self,
+        file_path: str | None,
+        image_data: str | None,
+        image_url: str | None = None,
     ) -> bytes:
-        """Return the raw file bytes from either base64 data (from the frontend
-        card/panel — a file picked on the user's PC) or a local file path."""
+        """Return the raw file bytes from base64 data (frontend card/panel — a
+        file picked on the user's PC), a URL (fetched HA-side, e.g. album art),
+        or a local file path."""
         if image_data:
             import base64
 
@@ -386,8 +402,21 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
                 return base64.b64decode(image_data)
             except (ValueError, TypeError) as err:
                 raise HomeAssistantError(f"Invalid image_data: {err}") from err
+        if image_url:
+            from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+            session = async_get_clientsession(self.hass)
+            try:
+                async with session.get(image_url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+                    resp.raise_for_status()
+                    data = await resp.read()
+            except (aiohttp.ClientError, TimeoutError) as err:
+                raise HomeAssistantError(f"Couldn't fetch {image_url}: {err}") from err
+            if not data:
+                raise HomeAssistantError(f"{image_url} returned no data")
+            return data
         if not file_path:
-            raise HomeAssistantError("Provide either file_path or image_data")
+            raise HomeAssistantError("Provide file_path, image_data, or image_url")
         if not self.hass.config.is_allowed_path(file_path):
             raise HomeAssistantError(
                 f"{file_path} is not in an allowed directory; add it to "

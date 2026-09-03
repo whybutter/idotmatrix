@@ -95,6 +95,10 @@ panel, so writable entities are marked `assumed_state`):
   - `idotmatrix.show_album` — switch back to the stored on-device album
     (carousel) without re-uploading anything.
   - `idotmatrix.stop_rhythm` — stop the audio rhythm visualizer.
+  - `idotmatrix.draw_pixels` — live graffiti: draw pixels over the current
+    display, progressively (with `chunk`/`pace_ms` for animation).
+  - `upload_image`/`upload_gif` also accept an `image_url` (fetched HA-side) —
+    handy for pushing a media player's album art.
 - **Number: Screen-on time** — auto screen-off timeout.
 - **Sensors (diagnostic): Firmware, Panel type, Panel size** — firmware read
   from the panel's version characteristic (with the auto-pushed device info as
@@ -124,6 +128,19 @@ no adapter/proxy has seen it recently.
   callbacks.
 - Thin entity platforms (`light`, `switch`, `button`, `number`, `sensor`) over
   a shared base entity.
+
+## Media reactions (album art / dance to the beat)
+
+Options → the integration → Configure has a **Media reaction** + **media
+player** pair. Point it at a `media_player` and choose:
+
+- **Show album art** — when that player starts playing, the current track's
+  album art is fetched HA-side and shown on the panel (refreshed when the track
+  changes); when it stops, the panel returns to its stored album.
+- **Dance to the beat (mic)** — starts the on-device microphone visualizer
+  while the player is playing, and returns to the stored album when it stops.
+
+It's a single toggle — no automation to author.
 
 ## Preferred proxy
 

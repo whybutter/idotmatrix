@@ -23,8 +23,11 @@ from .const import (
     DEFAULT_WB_BLUE,
     DEFAULT_WB_GREEN,
     DEFAULT_WB_RED,
+    CONF_MEDIA_PLAYER,
+    CONF_MEDIA_REACTION,
     DOMAIN,
     PROXY_AUTO,
+    REACTION_NONE,
 )
 
 PLATFORMS: list[Platform] = [
@@ -67,6 +70,8 @@ class IdotMatrixData:
         DEFAULT_WB_BLUE,
     )
     state: IdotMatrixState = field(default_factory=IdotMatrixState)
+    # Optional media-player reaction (album art / mic dance while playing).
+    media_reactor: object | None = None
 
 
 IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
@@ -163,6 +168,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -
         ),
     )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    reaction = entry.options.get(CONF_MEDIA_REACTION, REACTION_NONE)
+    media_entity = entry.options.get(CONF_MEDIA_PLAYER)
+    if reaction != REACTION_NONE and media_entity:
+        from .media_react import MediaReactor
+
+        reactor = MediaReactor(hass, entry.runtime_data, media_entity, reaction)
+        reactor.start()
+        entry.runtime_data.media_reactor = reactor
+
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
     return True
 
@@ -178,6 +193,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) 
     if unloaded:
         if (mgr := hass.data.get(f"{DOMAIN}_slideshow")) is not None:
             mgr.clear_state(entry.entry_id)
+        if (reactor := entry.runtime_data.media_reactor) is not None:
+            reactor.stop()
         entry.runtime_data.availability.async_stop()
         await entry.runtime_data.client.disconnect()
     return unloaded

@@ -7,6 +7,16 @@ CONF_PREFERRED_PROXY = "preferred_proxy"
 # Sentinel option value meaning "let HA pick the best proxy by signal".
 PROXY_AUTO = "auto"
 
+# Media reactions: tie the panel to a media_player. When it starts playing,
+# either show the track's album art or start the on-device mic visualizer; when
+# it stops, return the panel to its stored album (carousel).
+CONF_MEDIA_PLAYER = "media_player"
+CONF_MEDIA_REACTION = "media_reaction"
+# Reaction modes.
+REACTION_NONE = "none"
+REACTION_ALBUM_ART = "album_art"
+REACTION_MIC_DANCE = "mic_dance"
+
 # Display gamma. The panel's PWM is ~linear in the byte value, but source images
 # are sRGB-encoded, so sending them through untouched makes midtones far too
 # bright — colours look washed out and desaturated. Fully saturated primaries
@@ -93,6 +103,7 @@ SERVICE_DRAW_PIXELS = "draw_pixels"
 
 ATTR_FILE_PATH = "file_path"
 ATTR_IMAGE_DATA = "image_data"
+ATTR_IMAGE_URL = "image_url"
 ATTR_SIZE = "size"
 ATTR_RGB_COLOR = "rgb_color"
 ATTR_STYLE = "style"

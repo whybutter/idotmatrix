@@ -17,9 +17,12 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_GAMMA,
+    CONF_MEDIA_PLAYER,
+    CONF_MEDIA_REACTION,
     CONF_PREFERRED_PROXY,
     CONF_WB_BLUE,
     CONF_WB_GREEN,
@@ -35,6 +38,9 @@ from .const import (
     MIN_GAMMA,
     MIN_WB,
     PROXY_AUTO,
+    REACTION_ALBUM_ART,
+    REACTION_MIC_DANCE,
+    REACTION_NONE,
 )
 
 
@@ -155,6 +161,26 @@ class IdotMatrixOptionsFlow(OptionsFlow):
                     vol.Required(
                         CONF_WB_BLUE, default=opts.get(CONF_WB_BLUE, DEFAULT_WB_BLUE)
                     ): wb,
+                    # Media reactions (opt-in): pick a media_player and what the
+                    # panel should do while it plays. "none" disables it.
+                    vol.Optional(
+                        CONF_MEDIA_REACTION,
+                        default=opts.get(CONF_MEDIA_REACTION, REACTION_NONE),
+                    ): vol.In(
+                        {
+                            REACTION_NONE: "Off",
+                            REACTION_ALBUM_ART: "Show album art",
+                            REACTION_MIC_DANCE: "Dance to the beat (mic)",
+                        }
+                    ),
+                    vol.Optional(
+                        CONF_MEDIA_PLAYER,
+                        description={
+                            "suggested_value": opts.get(CONF_MEDIA_PLAYER)
+                        },
+                    ): selector.EntitySelector(
+                        selector.EntitySelectorConfig(domain="media_player")
+                    ),
                 }
             ),
         )

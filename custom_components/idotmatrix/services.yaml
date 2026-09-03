@@ -19,6 +19,12 @@ upload_image:
       advanced: true
       selector:
         text:
+    image_url:
+      name: Image URL
+      description: URL to fetch the image from (downloaded HA-side). Handy for album art (media_player entity_picture).
+      required: false
+      selector:
+        text:
     size:
       name: Panel size
       description: Panel resolution (pixels per side).
@@ -50,6 +56,12 @@ upload_gif:
       description: Base64-encoded GIF bytes (used by the frontend card). Advanced.
       required: false
       advanced: true
+      selector:
+        text:
+    image_url:
+      name: Image URL
+      description: URL to fetch the image from (downloaded HA-side). Handy for album art (media_player entity_picture).
+      required: false
       selector:
         text:
     size:
