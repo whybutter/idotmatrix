@@ -72,6 +72,8 @@ class IdotMatrixData:
     state: IdotMatrixState = field(default_factory=IdotMatrixState)
     # Optional media-player reaction (album art / mic dance while playing).
     media_reactor: object | None = None
+    # Live audio-spectrum webhook sink (always registered; idle until posted to).
+    spectrum: object | None = None
 
 
 IdotMatrixConfigEntry = ConfigEntry[IdotMatrixData]
@@ -178,6 +180,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) -
         reactor.start()
         entry.runtime_data.media_reactor = reactor
 
+    from .spectrum import SpectrumBridge
+
+    spectrum = SpectrumBridge(hass, entry.runtime_data)
+    spectrum.start()
+    entry.runtime_data.spectrum = spectrum
+
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_options))
     return True
 
@@ -195,6 +203,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: IdotMatrixConfigEntry) 
             mgr.clear_state(entry.entry_id)
         if (reactor := entry.runtime_data.media_reactor) is not None:
             reactor.stop()
+        if (spectrum := entry.runtime_data.spectrum) is not None:
+            spectrum.stop()
         entry.runtime_data.availability.async_stop()
         await entry.runtime_data.client.disconnect()
     return unloaded

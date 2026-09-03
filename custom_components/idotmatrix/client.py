@@ -185,6 +185,22 @@ class IdotMatrixClient:
             finally:
                 self._schedule_idle_disconnect()
 
+    async def write_spectrum(self, frame: bytes) -> None:
+        """Write ONE pre-built spectrum frame, as fast as possible — no settle
+        delay (these arrive at ~12-20 fps and must not lag). Used by the live
+        audio-spectrum webhook."""
+        async with self._lock:
+            self._cancel_idle_timer()
+            try:
+                client = await self._ensure_connected()
+                await client.write_gatt_char(WRITE_CHAR_UUID, frame, response=False)
+            except (BleakError, TimeoutError) as err:
+                raise IdotMatrixError(
+                    f"Spectrum write to {self._address} failed: {err}"
+                ) from err
+            finally:
+                self._schedule_idle_disconnect()
+
     async def stop_rhythm(self) -> None:
         await self._write(protocol.rhythm_stop())
 

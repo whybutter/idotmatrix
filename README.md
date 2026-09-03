@@ -142,6 +142,23 @@ player** pair. Point it at a `media_player` and choose:
 
 It's a single toggle — no automation to author.
 
+## Live audio spectrum (self-drawn equalizer)
+
+For real, our-own bars that follow the music, the integration exposes a
+**webhook** that streams posted 8-band levels to the panel as spectrum frames
+(the phone-audio visualizer path). HA has no raw audio, so an analyzer runs
+wherever the audio plays (e.g. a loopback-capture script on your PC), does an
+FFT into 8 bands, and POSTs them at ~15 fps:
+
+```
+POST /api/webhook/idotmatrix_spectrum_<last6-of-mac>
+{ "levels": [0.9, 0.6, 0.4, 0.2, 0.1, 0.05, 0.0, 0.0] }   # 0..1 or 0..31
+```
+
+Frames stream straight to the panel; after ~3 s of silence it returns to the
+stored album. A ready-to-run PC analyzer lives in
+[`tools/spectrum_analyzer.py`](./tools/spectrum_analyzer.py).
+
 ## Preferred proxy
 
 HA connects through the BLE proxy with the strongest signal, but the strongest
