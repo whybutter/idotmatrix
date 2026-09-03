@@ -376,3 +376,31 @@ stop_rhythm:
     entity:
       domain: light
       integration: idotmatrix
+
+draw_pixels:
+  name: Draw pixels
+  description: >-
+    Live graffiti — draw individual pixels over whatever the panel currently
+    shows, in order, appearing as a progressive stroke. Consecutive pixels of
+    the same color are sent together, so single-color strokes render fast.
+  target:
+    entity:
+      domain: light
+      integration: idotmatrix
+  fields:
+    pixels:
+      name: Pixels
+      description: >-
+        Ordered list of pixels. Each entry is [x, y, "#RRGGBB"] or
+        [x, y, r, g, b], with x/y from 0 (top-left). Example:
+        [[5, 5, "#ff0000"], [6, 5, "#ff0000"], [7, 6, "#00ff00"]]
+      required: true
+      selector:
+        object:
+    clear:
+      name: Clear first
+      description: Blank the panel to a black canvas before drawing.
+      required: false
+      default: false
+      selector:
+        boolean:

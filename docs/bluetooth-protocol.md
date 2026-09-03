@@ -505,6 +505,11 @@ Draw specific pixels in a chosen color. **The header differs between repos** —
 > Practical note: enable/consistency with DIY mode is not required for graffiti; `[8none1]` sends it
 > directly after power-on + time-sync.
 
+Implemented in the integration as `idotmatrix.draw_pixels` (v0.33.0): ordered
+pixel list, consecutive same-color pixels batched into the multi-pixel form
+(≤100/frame), streamed at the 20 ms bulk pace with no command settle. `clear:
+true` blanks the canvas first via the DIY-mode enter+clear frame.
+
 ---
 
 ## 21. Password / System

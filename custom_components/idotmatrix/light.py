@@ -12,7 +12,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from . import IdotMatrixConfigEntry
+from . import IdotMatrixConfigEntry, protocol
 from .const import (
     ATTR_ACTION,
     ATTR_BG_COLOR,
@@ -27,6 +27,8 @@ from .const import (
     ATTR_HOUR24,
     ATTR_IMAGE_DATA,
     ATTR_MINUTES,
+    ATTR_PIXELS,
+    ATTR_CLEAR,
     ATTR_MODE,
     ATTR_RGB_COLOR,
     ATTR_SECONDS,
@@ -58,6 +60,7 @@ from .const import (
     SERVICE_MIC_RHYTHM,
     SERVICE_SCOREBOARD,
     SERVICE_SEND_TEXT,
+    SERVICE_DRAW_PIXELS,
     SERVICE_SET_ECO,
     SERVICE_SHOW_ALBUM,
     SERVICE_SHOW_CLOCK,
@@ -73,6 +76,34 @@ from .entity import IdotMatrixEntity
 _RGB = vol.All(
     vol.ExactSequence([vol.All(int, vol.Range(0, 255))] * 3), vol.Coerce(tuple)
 )
+
+
+def _pixel_entry(value):
+    """One draw_pixels entry: [x, y, "#RRGGBB"] or [x, y, r, g, b].
+
+    Normalized to (x, y, (r, g, b)).
+    """
+    if not isinstance(value, (list, tuple)) or len(value) not in (3, 5):
+        raise vol.Invalid("pixel must be [x, y, '#RRGGBB'] or [x, y, r, g, b]")
+    x, y = value[0], value[1]
+    if not (isinstance(x, int) and isinstance(y, int) and 0 <= x <= 63 and 0 <= y <= 63):
+        raise vol.Invalid("pixel coords must be ints 0-63")
+    if len(value) == 3:
+        c = value[2]
+        if not (isinstance(c, str) and len(c) == 7 and c.startswith("#")):
+            raise vol.Invalid("pixel color must be '#RRGGBB'")
+        try:
+            rgb = tuple(int(c[i : i + 2], 16) for i in (1, 3, 5))
+        except ValueError as err:
+            raise vol.Invalid("pixel color must be '#RRGGBB'") from err
+    else:
+        rgb = tuple(value[2:5])
+        if not all(isinstance(v, int) and 0 <= v <= 255 for v in rgb):
+            raise vol.Invalid("pixel color components must be ints 0-255")
+    return (x, y, rgb)
+
+
+_PIXEL_LIST = [_pixel_entry]
 
 
 # (gamma, wb_red, wb_green, wb_blue) for the panel's colour correction.
@@ -258,6 +289,14 @@ async def async_setup_entry(
     platform.async_register_entity_service(
         SERVICE_STOP_RHYTHM, None, "async_stop_rhythm"
     )
+    platform.async_register_entity_service(
+        SERVICE_DRAW_PIXELS,
+        {
+            vol.Required(ATTR_PIXELS): vol.All(_PIXEL_LIST, vol.Length(min=1, max=1024)),
+            vol.Optional(ATTR_CLEAR, default=False): cv.boolean,
+        },
+        "async_draw_pixels",
+    )
 
 
 class IdotMatrixLight(IdotMatrixEntity, LightEntity):
@@ -413,6 +452,32 @@ class IdotMatrixLight(IdotMatrixEntity, LightEntity):
 
     async def async_stop_rhythm(self) -> None:
         await self._run(self._client.stop_rhythm())
+
+    async def async_draw_pixels(self, pixels: list, clear: bool = False) -> None:
+        """Live-draw pixels in order (graffiti). Consecutive same-color pixels
+        are batched into one multi-pixel frame so a stroke lands in one write;
+        order is preserved so the drawing appears progressively."""
+        frames: list[bytes] = []
+        if clear:
+            # The app's draw screen blanks the canvas by entering DIY mode.
+            frames.append(protocol.diy_mode(True))
+        run_color: tuple[int, int, int] | None = None
+        run: list[tuple[int, int]] = []
+
+        def _flush() -> None:
+            if run_color is not None and run:
+                for i in range(0, len(run), 100):
+                    frames.append(protocol.graffiti(*run_color, run[i : i + 100]))
+
+        for entry in pixels:
+            x, y, color = entry
+            corrected = _correct_rgb(color, self._correction)
+            if corrected != run_color:
+                _flush()
+                run_color, run = corrected, []
+            run.append((x, y))
+        _flush()
+        await self._run(self._client.draw_pixels(frames))
 
     async def async_chronograph(self, action: str) -> None:
         await self._run(self._client.chronograph(CHRONOGRAPH_ACTIONS[action]))

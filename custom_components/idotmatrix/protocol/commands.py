@@ -213,6 +213,33 @@ def seconds_to_time_key(seconds: int) -> int:
     return 4  # 300s
 
 
+def graffiti(r: int, g: int, b: int, pixels: list[tuple[int, int]]) -> bytes:
+    """Draw one or more pixels of a single color, live — no DIY-mode enable, no
+    ack, drawn over whatever the panel currently shows.
+
+    Multi-pixel form (the maintained fork's GraffitiModule, superset of the
+    hardware-validated single-pixel frame):
+    ``<len16 LE = 8+2N> 05 01 00 <R G B> <X1 Y1> ... <XN YN>``
+    With N=1 this reduces byte-for-byte to the single-pixel frame 8none1
+    validated on real hardware (red spiral): ``0a 00 05 01 00 R G B X Y``.
+    ~255 pixels max per frame (fork's trial-and-error limit); we cap lower.
+    """
+    if not pixels:
+        raise ValueError("graffiti needs at least one pixel")
+    if len(pixels) > 200:
+        raise ValueError("graffiti frame capped at 200 pixels")
+    for v in (r, g, b):
+        if not 0 <= v <= 255:
+            raise ValueError("color components must be 0-255")
+    total = 8 + 2 * len(pixels)
+    body = bytearray([total & 0xFF, (total >> 8) & 0xFF, 0x05, 0x01, 0x00, r, g, b])
+    for x, y in pixels:
+        if not 0 <= x <= 63 or not 0 <= y <= 63:
+            raise ValueError("pixel coords must be 0-63")
+        body += bytes([x, y])
+    return bytes(body)
+
+
 def enter_asset_view() -> bytes:
     """Switch the panel to its stored-asset (album/carousel) view.
 
